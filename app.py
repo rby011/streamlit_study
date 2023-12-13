@@ -71,11 +71,77 @@ st.sidebar.caption('Samsung Research , S/W Innovation Center')
 ##################################################################
 #                             main page
 ##################################################################
-try:
-    pass
 
-except Exception as e:
-    pass
-finally:
-    # [view] if all model data is laoded
-    st.toast(f'{selected_file} is loaded.')
+st.write('### AMT Test Result & Analysis')
+st.write('This is a test result summary and statistical analysis for each aspect')
+
+tab_asr , tab_mt, tab_int = st.tabs(['ASR', 'MT', 'ASR & MT'])
+
+
+# asr unit test result
+with tab_asr:
+    # result summary as data table
+    with st.container():
+        st.write('#### Result Summary')
+        st.write('''This provides a test result table with which you can which types of utterances have
+                relatively not-good result. For now, we only provide test result for korean language.''')
+        # makke table to show
+        with tab_asr:
+            st.write('Table Here')
+        with tab_mt:
+            st.write('Table Here')
+        with tab_int:
+            st.write('Table Here')
+
+    # statistical analysis title & list boxes
+    with st.container():  
+        st.write('#### Statistical Analysis')
+        left_sa, right_sa = st.columns([0.4, 0.6])
+        with left_sa:
+            st.write('''This is a visualization of statistical analysisfor each aspect present at the above table. 
+                    If you choose expander, you can see the detail of analysis result.''')
+        with right_sa:
+            left_lt, right_lt = st.columns([0.5, 0.5])
+            with left_lt:
+                st.selectbox('choose a language : ', ['korean', 'english', 'chinese', '...'])
+            with right_lt:
+                st.selectbox('choose an analysis target : ', ['utterance length', 'utterance style', 'speaker age', 'speaker gender'])
+
+    # statistical analysis body
+    with st.container():
+        left_sab, right_sab = st.columns([0.6, 0.4])
+        with left_sab:
+            st.write(' chart here ')
+            with st.expander('show analysis detail'):
+                st.write("""
+                - pearson correlation coefficient : 0.8 with p-value 0.002
+                - regression coefficient : 0.8 with p-value 0.002
+                """)
+        with right_sab:
+            st.selectbox('worst result @ 1 percentile : ', ['test', 'test', 'test', '...'])
+            st.caption('script')
+            st.write('가나다라ㅏㅁㄴㅇㄹㅁㄴㅇㄹㅁㄴㅇㄹㅁㄴㅇㄹㅁㄴㅇㄹㅁㄴㅇㄹㅁㄴㅇㄹ')
+            st.caption('transcript')
+            st.write('가나다라ㅏㅁㄴㅇㄹㅁㄴㅇㄹㅁㄴㅇㄹㅁㄴㅇㄹㅁㄴㅇㄹㅁㄴㅇㄹㅁㄴㅇㄹ')
+            st.caption('audio * sr 10 hz, channel 1..')
+            st.audio('test.wav')
+
+# mt unit test result
+with tab_mt:
+    st.write('#### mt unit test result')
+
+# asr & asr integration test result
+with tab_int:
+    st.write('#### asr & mt integration test result')
+
+
+# try:
+#     pass
+
+# except Exception as e:
+#     pass
+# finally:
+#     # [view] if all model data is laoded
+
+
+st.toast(f'{selected_file} is loaded.')
