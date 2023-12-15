@@ -1,3 +1,8 @@
+###############################################################################################
+# streamlit latest 2.0.19?
+# streamlit-ago
+###############################################################################################
+
 import pandas as pd
 import streamlit as st
 import os, re
@@ -31,17 +36,31 @@ class TestAnalyzer(ABC):
         self.codes = ['KR', 'EN', 'ES', 'FR', 'DE', 'IT', 'JP', 'CN', 'RU', 'PT', 
                       'AR', 'HI', 'SW', 'NL', 'SV', 'PL', 'TR', 'TH', 'HE', 'DA']
 
-        self.aspects = {'Utterance Length':0, 
-                        'Utterance Style':1, 
-                        'Speaker Age':2, 
-                        'Speaker Gender':3}
+        # aspect identifiers at ui 
+        self.aspects_names_list = ['Utterance Length', 'Utterance Style' 'Speaker Age', 'Speaker Gender']
 
-        self.aspects_columns = {'Utterance Length':'sentence_len', 
+        self.aspects_names_dict = {'Utterance Length':0, 
+                              'Utterance Style':1, 
+                              'Speaker Age':2, 
+                              'Speaker Gender':3}
+
+        # aspect identifiers at dataframe
+        self.aspects_columns_dict = {'Utterance Length':'sentence_len', 
                                 'Utterance Style':'style', 
                                 'Speaker Age':'age', 
                                 'Speaker Gender':'gender'}
         
-        self.aspects_values = {}
+        self.aspects_max_values_dict  = {'Utterance Length': None, 
+                                    'Utterance Style': None, 
+                                    'Speaker Age': None, 
+                                    'Speaker Gender':None}
+
+        self.aspects_min_values_dict  = {'Utterance Length': None, 
+                                    'Utterance Style': None, 
+                                    'Speaker Age': None, 
+                                    'Speaker Gender':None}
+        
+        self.aspects_values_dict = {}
     '''
     this can be extended so as to set strategy (what to and how to anlyze) in the future
     
@@ -51,18 +70,24 @@ class TestAnalyzer(ABC):
     ''' 
     def configure(self, selected_file:str) -> None:
         # preprocessed dataframe for the previous test result
-        idx = self.file_to_idx[selected_file]
-        if(idx < len(self.result_files)):
-            self.pdf = ar.prepocess_for_vanlysis(os.path.join(self.result_root_path, self.idx_to_file[idx+1]))
+        _idx = self.file_to_idx[selected_file]
+        if(_idx < len(self.result_files)):
+            self.pdf = ar.prepocess_for_vanlysis(os.path.join(self.result_root_path, self.idx_to_file[_idx+1]))
         
         # preprocessed dataframe from the selected test result
         self.cdf = ar.prepocess_for_vanlysis(os.path.join(self.result_root_path, selected_file))
         
-        # super set that each aspect has 
-        for aspect in list(self.aspects.keys())[1:]: # except for utterance length
-            aspect_vals = list(self.cdf[self.aspects_columns[aspect]].dropna().unique())
-            self.aspects_values[aspect] = aspect_vals 
-            
+        # super set that each aspect has
+        _an_key_list = list(self.aspects_names_dict.keys()) 
+        self.aspects_values_dict[_an_key_list[0]] = None
+        for aspect in _an_key_list[1:]: # except for utterance length
+            aspect_vals = list(self.cdf[self.aspects_columns_dict[aspect]].dropna().unique())
+            self.aspects_values_dict[aspect] = aspect_vals 
+        
+        # max values
+        self.aspects_max_values_dict[_an_key_list[0]] = float(self.cdf[self.aspects_columns_dict[self.aspects_names_list[0]]].max())
+        self.aspects_min_values_dict[_an_key_list[0]] = float(self.cdf[self.aspects_columns_dict[self.aspects_names_list[0]]].min())
+        
         # set configure flag
         self.configured = True
     
@@ -161,7 +186,7 @@ class TestAnalyzer(ABC):
         
         y_var = metric_name
         
-        aspect_index = self.aspects[aspect_name] 
+        aspect_index = self.aspects_names_dict[aspect_name] 
         if aspect_index == 0:
             x_var = 'sentence_len'
             return ar.v_analyze_numerics(cdf, x_var, y_var)
@@ -180,13 +205,16 @@ class TestAnalyzer(ABC):
         cdf = self.cdf
         
         # conditional slicing for each given column in the ret_columns
+        ret = []
         condition1 = (cdf[aspect_name] >= aspect_min) & (cdf[aspect_name] <= aspect_max)
         condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
-        
-        ret = []
         for i, ret_col in enumerate(ret_columns):
             ret.append(cdf[condition1 & condition2][ret_col].to_list())
 
+        # exceptional case
+        if len(ret) != len(ret_columns):
+            ret = [[],[],[],[]]
+        
         return ret
 
     def get_testresults_by_categoric(self, aspect_name:str, aspect_val:str, 
@@ -196,13 +224,15 @@ class TestAnalyzer(ABC):
         cdf = self.cdf
         
         # conditional slicing for each given column in the ret_columns
+        ret = []
         condition1 = (cdf[aspect_name] == aspect_val)
         condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
-        
-        ret = []
         for i, ret_col in enumerate(ret_columns):
-            print(cdf[condition1 & condition2][ret_col].to_list())
             ret.append(cdf[condition1 & condition2][ret_col].to_list())
+
+        # exceptional case
+        if len(ret) != len(ret_columns):
+            ret = [[],[],[],[]]
 
         return ret
 
@@ -213,6 +243,34 @@ st.set_page_config(page_title='AMT Test' ,
                    page_icon='🚀')
 
 analyzer = TestAnalyzer('testresults')
+
+# state variables
+asr_query_numeric_requested = False
+asr_query_others_requested = False
+asr_query_result_key = 'asr_query_result'
+asr_query_result_val = [[],[],[],[]]
+
+if asr_query_result_key not in st.session_state:
+    st.session_state[asr_query_result_key] = asr_query_result_val
+
+# variables from control
+asr_selected_language_key = "asr_selected_language"
+asr_selected_language = analyzer.codes[0]
+asr_selected_language_changed = False
+if asr_selected_language_key not in st.session_state:
+    st.session_state[asr_selected_language_key] = asr_selected_language
+
+asr_selected_aspect_name_key = "asr_selected_aspect_name"
+asr_selected_aspect_name = analyzer.aspects_names_list[0]
+if asr_selected_aspect_name_key not in st.session_state:
+    st.session_state[asr_selected_aspect_name_key] = asr_selected_aspect_name
+asr_selected_aspect_name_changed = False
+
+asr_selected_clip_info_key = "asr_selected_clip_info"
+asr_selected_clip_info = None
+if asr_selected_clip_info_key not in st.session_state:
+    st.session_state[asr_selected_clip_info_key] = asr_selected_clip_info
+asr_selected_clip_info_changed = False
 
 ##################################################################
 #                             side bar 
@@ -258,17 +316,22 @@ st.sidebar.caption('Samsung Research , S/W Innovation Center')
 ##################################################################
 #                             main page
 ##################################################################
-
 st.write('### Test Result & Analysis')
 st.write('This is a test result summary and statistical analysis for each aspect')
 
 tab_asr , tab_mt , tab_int = st.tabs(['ASR', 'MT', 'ASR & MT'])
 
-
 # asr unit test result
 with tab_asr:
+    print('tab_asr_root')
+    
+    
+    
     # result summary as data table
     with st.container():
+
+        print('tab_asr_root - result summary')
+
         st.write('#### Result Summary')
         st.write('''This provides a test result table with which you can which types of utterances have
                 relatively not-good result. For now, we only provide test result for korean language.''')
@@ -420,9 +483,9 @@ with tab_asr:
             )
 
     # statistical analysis title & list boxes
-    selected_language = None
-    selected_aspect = None
-    with st.container():  
+    with st.container(): 
+        print('tab_asr_root - detail analysis')
+
         st.write('#### Detail Analysis')
         left_sa, right_sa = st.columns([0.4, 0.6])
         with left_sa:
@@ -430,21 +493,33 @@ with tab_asr:
                     If you choose expander, you can see the detail of analysis result.''')
         with right_sa:
             left_lt, right_lt = st.columns([0.5, 0.5])
+            # language change
             with left_lt:
-                selected_language = st.selectbox('choose a language : ', analyzer.codes)
+                asr_selected_language = st.selectbox('choose a language : ', analyzer.codes, disabled=True)
+                if st.session_state[asr_selected_language_key] != asr_selected_language:
+                    st.session_state[asr_selected_language_key] = asr_selected_language
+                    asr_selected_language_changed = True
+                print('selected language : ', asr_selected_language)
+            # aspect value selection
             with right_lt:
-                selected_aspect = st.selectbox('choose an analysis target : ', 
-                                               analyzer.aspects.keys())
+                asr_selected_aspect_name = st.selectbox('choose an aspect : ', analyzer.aspects_names_dict.keys())
+                st.session_state[asr_selected_aspect_name_key] = asr_selected_aspect_name
+                if st.session_state[asr_selected_aspect_name_key] != asr_selected_aspect_name:
+                    st.session_state[asr_selected_aspect_name_key] = asr_selected_aspect_name
+                    asr_selected_aspect_name_changed = True
+                print('selected aspect : ', asr_selected_aspect_name)
 
     st.write(' ')
 
     # detail analysis body
     with st.container():
+        print('tab_asr_root - detail analysis body')
+        
         left_sab, right_sab = st.columns([0.3, 0.7])
         # chart and statistical analysis
         with left_sab:
             st.write('<u> Data distribution with wer score</u>',unsafe_allow_html=True)
-            chart, info, frame = analyzer.get_analysis_result(selected_language, 'wer', selected_aspect)
+            chart, info, frame = analyzer.get_analysis_result(asr_selected_language, 'wer', asr_selected_aspect_name)
             with st.container(border=True):
                 st.pyplot(chart)
             with st.expander('show analysis detail'):
@@ -456,82 +531,92 @@ with tab_asr:
             with st.container(border=True):
                 st.write(' ')
                 st.write(' ')
-                metric_name = 'wer'
-                metric_max = 1.0
-                metric_min = 0.5
-                aspect_name = None
-                ret_columns = None
-                ret_list = None
-                ret_columns = ['wer', 'path', 'sentence', 'transcript']
                 
                 # 'utterance length' aspect is selected
-                if analyzer.aspects[selected_aspect] == 0: 
-                    aspect_max = None
-                    aspect_min = None
-                    
-                    # set for 'utterance length' aspect                    
-                    aspect_name = 'sentence_len'
-                    # get min , max range of aspect
-                    sen_mx = float(analyzer.cdf[aspect_name].max())  # TODO : MUST be located at other module
-                    sen_mn = float(analyzer.cdf[aspect_name].min())  # TODO : MUST be lcoated at ohter module
-                    # set defult query condition and query with the default
-                    aspect_max = sen_mx
-                    aspect_min = sen_mx / 2
-
-                    # make default query , somewhat complex, later
-                    # ret_list = analyzer.get_testresults_by_numeric(aspect_name,aspect_max,aspect_min,
-                    #                                               metric_name,metric_max,metric_min,ret_columns)
-                    
+                if analyzer.aspects_names_dict[asr_selected_aspect_name] == 0: 
                     # slider bars for result query
                     right_sab_col1, right_sab_col2, right_sab_col3, right_sab_col4, right_sab_col5 = st.columns([1,1,1,1,0.4])
                     with right_sab_col1:
-                        metric_min = st.slider('WER Min', min_value=0.0, max_value=1.0, step=0.1, value=metric_min)
+                        metric_min_query = st.slider('WER Min', min_value=0.0, max_value=1.0, step=0.1, value=0.5)
+                        print(metric_min_query)
                     with right_sab_col2:
-                        metric_max = st.slider('WER Max', min_value=0.0, max_value=1.0, step=0.1, value=metric_max)
+                        metric_max_query = st.slider('WER Max', min_value=0.0, max_value=1.0, step=0.1, value=1.0)
+                        print(metric_max_query)
                     with right_sab_col3:
-                        aspect_min = st.slider('Sentence Length Min', min_value=sen_mn, max_value=sen_mx, value=aspect_min)
+                        aspect_min_query = st.slider('Sentence Length Min', 
+                                               min_value=analyzer.aspects_min_values_dict[asr_selected_aspect_name], 
+                                               max_value=analyzer.aspects_max_values_dict[asr_selected_aspect_name], 
+                                               value=analyzer.aspects_max_values_dict[asr_selected_aspect_name]/2)
+                        print(aspect_min_query)
                     with right_sab_col4:
-                        aspect_max = st.slider('Sentence Length Max ', min_value=sen_mn, max_value=sen_mx, value=aspect_max)
+                        aspect_max_query = st.slider('Sentence Length Max ', 
+                                               min_value=analyzer.aspects_min_values_dict[asr_selected_aspect_name], 
+                                               max_value=analyzer.aspects_max_values_dict[asr_selected_aspect_name], 
+                                               value=analyzer.aspects_max_values_dict[asr_selected_aspect_name])
+                        print(aspect_max_query)
                     with right_sab_col5:
                         if st.button('Get'):
-                            # set user query condition and query with the condition
-                            ret_list = analyzer.get_testresults_by_numeric(aspect_name,aspect_max,aspect_min,
-                                                                           metric_name,metric_max,metric_min, ret_columns)
+                            asr_query_numeric_requested = True
+                            print('Get is clicked - sentence')
                 else:
-                    aspect_val = analyzer.aspects_values[selected_aspect][0]
-                    aspect_name = analyzer.aspects_columns[selected_aspect]
-                    
-                    # make default query, somewhat complex, later
-                    # ret_list = analyzer.get_testresults_by_categoric(aspect_name, aspect_val, metric_name, 
-                    #                                                 metric_max, metric_min, ret_columns)
-
                     # slider bars for result query
                     right_sab_col6, right_sab_col7, right_sab_col8, right_sab_col9 = st.columns([1,1,1,0.3])
                     with right_sab_col6:
-                        metric_min = st.slider('WER Min', min_value=0.0, max_value=1.0, step=0.1, value=metric_min)
+                        metric_min_query = st.slider('WER Min', min_value=0.0, max_value=1.0, step=0.1, value=0.5)
+                        print(metric_min_query)
                     with right_sab_col7:
-                        metric_max = st.slider('WER Max', min_value=0.0, max_value=1.0, step=0.1, value=metric_max)
+                        metric_max_query = st.slider('WER Max', min_value=0.0, max_value=1.0, step=0.1, value=1.0)
+                        print(metric_max_query)
                     with right_sab_col8:
-                        aspect_val = st.selectbox(f'Choose {aspect_name}',analyzer.aspects_values[selected_aspect])
+                        aspect_val_query = st.selectbox(f'Choose {asr_selected_aspect_name}',analyzer.aspects_values_dict[asr_selected_aspect_name])
+                        print(aspect_val_query)
                     with right_sab_col9:
                         if st.button('Get'):
-                            ret_list = analyzer.get_testresults_by_categoric(aspect_name, aspect_val, metric_name, 
-                                                                            metric_max, metric_min, ret_columns)
-
-                # dispay query result and compose ui components' value with the result
-                # make index table for results list component 
-                if((ret_list != None) and (len(ret_list) > 0) ): # if there is more than query result
-                    sel_dict = {}
-                    for score, path, script,tscript in zip(ret_list[0], ret_list[1], ret_list[2], ret_list[3]):
-                        key = f'[{round(score, ndigits=2)}]  '
-                        key = key + f'{os.path.basename(path)}'
-                        val = [path, script, tscript]
-                        sel_dict[key] = val
+                            asr_query_others_requested = True
+                            print('Get button is clicked - other')
+                
+                # make a query                
+                if(asr_query_numeric_requested):
+                    aspect_name = analyzer.aspects_columns_dict[asr_selected_aspect_name]
+                    # set user query condition and query with the condition
+                    asr_query_result = analyzer.get_testresults_by_numeric(analyzer.aspects_columns_dict[asr_selected_aspect_name],
+                                                                           aspect_max_query,
+                                                                           aspect_min_query, 
+                                                                           'wer',
+                                                                           metric_max_query,
+                                                                           metric_min_query, 
+                                                                           ['wer', 'path', 'sentence', 'transcript'])
+                    st.session_state[asr_query_result_key] = asr_query_result
+                    print('Retrieval after query :', len(asr_query_result[0]))
+                elif(asr_query_others_requested):
+                    aspect_val_query = analyzer.aspects_values_dict[asr_selected_aspect_name][0]
+                    aspect_name = analyzer.aspects_columns_dict[asr_selected_aspect_name]
+                    asr_query_result = analyzer.get_testresults_by_categoric(analyzer.aspects_columns_dict[asr_selected_aspect_name], 
+                                                                             aspect_val_query, 
+                                                                             'wer', 
+                                                                             metric_max_query, 
+                                                                             metric_min_query, 
+                                                                             ['wer', 'path', 'sentence', 'transcript'])
+                    st.session_state[asr_query_result_key] = asr_query_result
+                    print('Retrieval after query:', len(asr_query_result[0]))
+                else:
+                    asr_query_result = st.session_state[asr_query_result_key]
+                    print('Retrieval from session state', len(asr_query_result[0]))
+                    pass
+                
+                if((len(asr_query_result[0]) > 0) and (asr_selected_language_changed == False) and (asr_selected_aspect_name_changed == False)): 
+                    # ['wer', 'path', 'sentence', 'transcript']
+                    _sel_dict = {}
+                    for score, path, script, tscript in zip(asr_query_result[0], asr_query_result[1], asr_query_result[2], asr_query_result[3]):
+                        _key = f'[{round(score, ndigits=2)}]  '
+                        _key = _key + f'{os.path.basename(path)}'
+                        _val = [path, script, tscript]
+                        _sel_dict[_key] = _val
 
                     # audio file list with addition info
-                    sel_key = st.selectbox('audio clips by condition : ',  sel_dict.keys())
-                    if os.path.exists(sel_key[0]):
-                        st.audio(sel_dict[sel_key][0])
+                    asr_selected_clip_info = st.selectbox('audio clips by condition : ',  _sel_dict.keys())
+                    if (asr_selected_clip_info != None) and os.path.exists(asr_selected_clip_info[0]):
+                        st.audio(_sel_dict[asr_selected_clip_info][0])
                     else:
                         with st.container(border=True):
                             st.write('Audio File Not Found')
@@ -541,23 +626,23 @@ with tab_asr:
                     with right_sab_col6:
                         st.caption('script')
                     with right_sab_col7:
-                        st.write(sel_dict[sel_key][1])
+                        st.write(_sel_dict[asr_selected_clip_info][1])
                     right_sab_col8  , right_sab_col9 = st.columns([0.07, 0.95])
                     with right_sab_col8:
                         st.caption('transcript')
                     with right_sab_col9:
-                        st.write(sel_dict[sel_key][2])
+                        st.write(_sel_dict[asr_selected_clip_info][2])
                 else: # if there is no result
                     for _ in range(6):
                         st.write(' ')
-                    st.write("No test results are found")
+                    st.write("No Test Result")
                     for _ in range(6):
                         st.write(' ')
                
-                ret_list = None
-                         
                 st.write(' ')
-      
+                
+                print('page finished')
+                print()
 # mt unit test result
 with tab_mt:
     st.write('#### mt unit test result')
