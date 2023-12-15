@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 import seaborn as sns
+import matplotlib.pyplot as plt
 from statsmodels.formula.api import ols
 from scipy.stats import pearsonr, shapiro
 from statsmodels.stats.anova import anova_lm
@@ -24,23 +25,30 @@ chart creation and statstic analysis for two numerical variable
 
 : return : chart ojbect , string list to display 
 '''
-def v_analyze_numerics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, List[str]]:
+def v_analyze_numerics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, List[str], Any]:
     # strings to display
     ret = []
     
-    # pearson analysis
+    print(f'analysis between {x_var} with {y_var}')
+    
+    # pearson analysis TODO : view setting MUST be located at other module
     correlation, p_value = pearsonr(df[x_var], df[y_var])
-    ret.append(f'### pearson : coefficient ({correlation}) with p-value({p_value})')
-    ret.append(f"    * {x_var} normality (shapiro-wilk): {shapiro(df[x_var])[1]}")
-    ret.append(f"    * {y_var} normality (shapiro-wilk): {shapiro(df[y_var])[1]}")
+    ret.append(f'* pearson analysis')
+    ret.append(f'    * coefficient ({correlation}) with p-value({p_value})')
+    ret.append(f"       * {x_var} normality (shapiro-wilk): {shapiro(df[x_var])[1]}")
+    ret.append(f"       * {y_var} normality (shapiro-wilk): {shapiro(df[y_var])[1]}")
 
     # regression analysis
     model = ols(f'{y_var} ~ {x_var}', data = df).fit()
-    ret.append(f'### regression : coefficient ({model.params[0]}) with p-value({model.f_pvalue})')
-    ret.append(f"    * residual nomality (shaprio-wilk): {shapiro(model.resid)[1]}")
-    ret.append(f"    * residual homogeneity of variances (breusch-pagan) : {het_breuschpagan(model.resid, model.model.exog)[1]}")
+    ret.append(f'* regression ')
+    ret.append(f'  * coefficient ({model.params[0]}) with p-value({model.f_pvalue})')
+    ret.append(f"     * residual nomality (shaprio-wilk): {shapiro(model.resid)[1]}")
+    ret.append(f"     * residual homogeneity of variances (breusch-pagan) : {het_breuschpagan(model.resid, model.model.exog)[1]}")
     
-    return sns.scatterplot(x = x_var, y = y_var, data = df) , ret
+    # chart
+    fig, ax = plt.subplots()
+    sns.scatterplot(x = x_var, y = y_var, data = df, ax=ax)
+    return fig , ret, []
 
 
 '''
@@ -54,7 +62,7 @@ chart creation and statstic analysis for two cateogrical variable
 
 : return : chart ojbect , average data frame for each category, string list to display 
 '''
-def v_analyze_categorics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, pd.DataFrame, List[str]]:
+def v_analyze_categorics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, List[str], pd.DataFrame]:
     ret = []
 
     # display statistical analysis result
@@ -68,11 +76,15 @@ def v_analyze_categorics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, p
     # one way anova and extract p-value from the result
     p_val = anova_lm(model).iloc[0,-1]
 
-    ret.append(f'# anova : {p_val} with {p_val}')
-    ret.append(f"  * shaprio : {shapiro(model.resid)}")
-    ret.append(f"  * breusch-pagan : {het_breuschpagan(model.resid, model.model.exog)}")
+    ret.append(f'* anova analysis p-value : {p_val}')
+    ret.append(f"  * residual nomality (shaprio-wilk) : {shapiro(model.resid)[1]}")
+    ret.append(f"  * residual homogeneity of variances (breusch-pagan) : {het_breuschpagan(model.resid, model.model.exog)[1]}")
+
+    # chart
+    fig, ax = plt.subplots()
+    sns.violinplot(x=x_var, y=y_var, data=df , palette = sns.color_palette("hls", len(df[x_var].unique())),ax=ax)
     
-    return sns.violinplot(x=x_var, y=y_var, data=df , palette = sns.color_palette("hls", len(df[x_var].unique()))), avg_df, ret
+    return fig, ret, avg_df
 
 
 '''
@@ -115,6 +127,49 @@ def prepocess_for_vanlysis(file_path:str) -> pd.DataFrame:
     # return preprocessed dataframe
     return df
 
+
+'''
+make a fake data frame with the below structure
+
+[colum structure]
+1st              : fcol_name with fcol_values
+2nd ~ (last - 1) : columns ← random number generated
+last             : some calculateion with the middle position columns, 
+                   currently 'diff' (last - first) at the middle position column
+
+: param fcol_name   : the name of first column
+: param fcol_values : the values assigned to the first column
+: param columns     : the name of middle position columns whose values are assgined with random
+: param make_last   : if True, make a special column for a given calcuation type
+: param type_last   : currentl diff only supported
+                    : last column value - first colum value in the given columns
+'''
+def random_dataframe(fcol_name:str, fcol_values:List[str], 
+                     columns:List[str], make_last:bool = False, type_last:str = '') -> pd.DataFrame:
+    
+    columns.insert(0, fcol_name)
+    if(make_last & (len(columns) > 1)):
+        columns.append(type_last)
+    
+    rdf = pd.DataFrame(columns = columns)
+        
+    for r_idx, fcol_val in enumerate(fcol_values):
+        # dictionary to fill into a raw
+        tmp = {}
+        # from the first to the last
+        for c_idx, col in enumerate(columns):
+            if c_idx == 0:
+                tmp[col] = fcol_val
+            else:
+                tmp[col] = np.random.normal(0.5, 0.3)
+        # last column
+        if(make_last & (len(columns) > 1)):
+            tmp[columns[-1]] = tmp[columns[1]] - tmp[columns[-1]] 
+            
+        # fill into this raw
+        rdf.loc[r_idx] = tmp
+    
+    return rdf
 
 '''
 generate dummy test result file to independent implemnetation of analyzer and ui
