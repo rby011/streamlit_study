@@ -496,18 +496,24 @@ with tab_asr:
             # language change
             with left_lt:
                 asr_selected_language = st.selectbox('choose a language : ', analyzer.codes, disabled=True)
-                if st.session_state[asr_selected_language_key] != asr_selected_language:
-                    st.session_state[asr_selected_language_key] = asr_selected_language
-                    asr_selected_language_changed = True
-                print('selected language : ', asr_selected_language)
+                # st.session_state[asr_query_result_key] = [[],[],[],[]]
+                # if st.session_state[asr_selected_language_key] != asr_selected_language:
+                #     st.session_state[asr_selected_language_key] = asr_selected_language
+                #     asr_selected_language_changed = True
+                #     print('selected language changed : ', asr_selected_language)
             # aspect value selection
             with right_lt:
                 asr_selected_aspect_name = st.selectbox('choose an aspect : ', analyzer.aspects_names_dict.keys())
+                if asr_selected_aspect_name == analyzer.aspects_names_list[0]:
+                    asr_query_numeric_requested = True
+                else:
+                    asr_query_others_requested = True
+                # st.session_state[asr_query_result_key] = [[],[],[],[]]
                 st.session_state[asr_selected_aspect_name_key] = asr_selected_aspect_name
-                if st.session_state[asr_selected_aspect_name_key] != asr_selected_aspect_name:
-                    st.session_state[asr_selected_aspect_name_key] = asr_selected_aspect_name
-                    asr_selected_aspect_name_changed = True
-                print('selected aspect : ', asr_selected_aspect_name)
+                # if st.session_state[asr_selected_aspect_name_key] != asr_selected_aspect_name:
+                #     st.session_state[asr_selected_aspect_name_key] = asr_selected_aspect_name
+                #     asr_selected_aspect_name_changed = True
+                #     print('selected aspect changed : ', asr_selected_aspect_name)
 
     st.write(' ')
 
@@ -535,7 +541,7 @@ with tab_asr:
                 # 'utterance length' aspect is selected
                 if analyzer.aspects_names_dict[asr_selected_aspect_name] == 0: 
                     # slider bars for result query
-                    right_sab_col1, right_sab_col2, right_sab_col3, right_sab_col4, right_sab_col5 = st.columns([1,1,1,1,0.4])
+                    right_sab_col1, right_sab_col2, right_sab_col3, right_sab_col4 = st.columns([1,1,1,1])
                     with right_sab_col1:
                         metric_min_query = st.slider('WER Min', min_value=0.0, max_value=1.0, step=0.1, value=0.5)
                         print(metric_min_query)
@@ -554,29 +560,7 @@ with tab_asr:
                                                max_value=analyzer.aspects_max_values_dict[asr_selected_aspect_name], 
                                                value=analyzer.aspects_max_values_dict[asr_selected_aspect_name])
                         print(aspect_max_query)
-                    with right_sab_col5:
-                        if st.button('Get'):
-                            asr_query_numeric_requested = True
-                            print('Get is clicked - sentence')
-                else:
-                    # slider bars for result query
-                    right_sab_col6, right_sab_col7, right_sab_col8, right_sab_col9 = st.columns([1,1,1,0.3])
-                    with right_sab_col6:
-                        metric_min_query = st.slider('WER Min', min_value=0.0, max_value=1.0, step=0.1, value=0.5)
-                        print(metric_min_query)
-                    with right_sab_col7:
-                        metric_max_query = st.slider('WER Max', min_value=0.0, max_value=1.0, step=0.1, value=1.0)
-                        print(metric_max_query)
-                    with right_sab_col8:
-                        aspect_val_query = st.selectbox(f'Choose {asr_selected_aspect_name}',analyzer.aspects_values_dict[asr_selected_aspect_name])
-                        print(aspect_val_query)
-                    with right_sab_col9:
-                        if st.button('Get'):
-                            asr_query_others_requested = True
-                            print('Get button is clicked - other')
-                
-                # make a query                
-                if(asr_query_numeric_requested):
+                        
                     aspect_name = analyzer.aspects_columns_dict[asr_selected_aspect_name]
                     # set user query condition and query with the condition
                     asr_query_result = analyzer.get_testresults_by_numeric(analyzer.aspects_columns_dict[asr_selected_aspect_name],
@@ -587,10 +571,26 @@ with tab_asr:
                                                                            metric_min_query, 
                                                                            ['wer', 'path', 'sentence', 'transcript'])
                     st.session_state[asr_query_result_key] = asr_query_result
+                    
+                    st.toast(f'{len(asr_query_result[0])} is gathered')
+
                     print('Retrieval after query :', len(asr_query_result[0]))
-                elif(asr_query_others_requested):
-                    aspect_val_query = analyzer.aspects_values_dict[asr_selected_aspect_name][0]
-                    aspect_name = analyzer.aspects_columns_dict[asr_selected_aspect_name]
+                else:
+                    # slider bars for result query
+                    right_sab_col6, right_sab_col7, right_sab_col8 = st.columns([1,1,1])
+                    with right_sab_col6:
+                        metric_min_query = st.slider('WER Min', min_value=0.0, max_value=1.0, step=0.1, value=0.5)
+                        print(metric_min_query)
+                    with right_sab_col7:
+                        metric_max_query = st.slider('WER Max', min_value=0.0, max_value=1.0, step=0.1, value=1.0)
+                        print(metric_max_query)
+                    with right_sab_col8:
+                        aspect_val_query = st.selectbox(f'Choose {asr_selected_aspect_name}',analyzer.aspects_values_dict[asr_selected_aspect_name])
+                        asr_query_others_requested = True
+                        print(aspect_val_query)
+
+                    # aspect_val_query = analyzer.aspects_values_dict[asr_selected_aspect_name][0]
+                    # aspect_name = analyzer.aspects_columns_dict[asr_selected_aspect_name]
                     asr_query_result = analyzer.get_testresults_by_categoric(analyzer.aspects_columns_dict[asr_selected_aspect_name], 
                                                                              aspect_val_query, 
                                                                              'wer', 
@@ -598,24 +598,25 @@ with tab_asr:
                                                                              metric_min_query, 
                                                                              ['wer', 'path', 'sentence', 'transcript'])
                     st.session_state[asr_query_result_key] = asr_query_result
+                    
+                    st.toast(f'{len(asr_query_result[0])} is gathered')
+                    
                     print('Retrieval after query:', len(asr_query_result[0]))
-                else:
+
+                if(len(st.session_state[asr_query_result_key][0]) > 0):
                     asr_query_result = st.session_state[asr_query_result_key]
-                    print('Retrieval from session state', len(asr_query_result[0]))
-                    pass
-                
-                if((len(asr_query_result[0]) > 0) and (asr_selected_language_changed == False) and (asr_selected_aspect_name_changed == False)): 
-                    # ['wer', 'path', 'sentence', 'transcript']
                     _sel_dict = {}
+                    # ['wer', 'path', 'sentence', 'transcript']
                     for score, path, script, tscript in zip(asr_query_result[0], asr_query_result[1], asr_query_result[2], asr_query_result[3]):
                         _key = f'[{round(score, ndigits=2)}]  '
-                        _key = _key + f'{os.path.basename(path)}'
+                        _key = _key + path
                         _val = [path, script, tscript]
                         _sel_dict[_key] = _val
 
                     # audio file list with addition info
                     asr_selected_clip_info = st.selectbox('audio clips by condition : ',  _sel_dict.keys())
-                    if (asr_selected_clip_info != None) and os.path.exists(asr_selected_clip_info[0]):
+                    # print(asr_selected_clip_info, ':' , _sel_dict[asr_selected_clip_info], ' -> ' , _sel_dict[asr_selected_clip_info][0])
+                    if (asr_selected_clip_info != None) and os.path.exists( _sel_dict[asr_selected_clip_info][0]):
                         st.audio(_sel_dict[asr_selected_clip_info][0])
                     else:
                         with st.container(border=True):

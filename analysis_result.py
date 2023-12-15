@@ -199,6 +199,9 @@ def _generate_dummy_result(suite_file_path:str, result_file_root:str, result_fil
     cols_to_scale = df_org.filter(regex='^n_').columns
     df_org[cols_to_scale] = MinMaxScaler().fit_transform(df_org[cols_to_scale])
 
+    # path 
+    df_org['path'].apply(lambda x: os.path.join('testsuites/cv-corpus-15.0-2023-09-08/ko/clips', 'path'))
+    
     # 'y' values to generate depdending on 'x'values
     df_org['n_wer'] = None
     df_org['n_bleu'] = None
