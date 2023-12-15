@@ -244,34 +244,6 @@ st.set_page_config(page_title='AMT Test' ,
 
 analyzer = TestAnalyzer('testresults')
 
-# state variables
-asr_query_numeric_requested = False
-asr_query_others_requested = False
-asr_query_result_key = 'asr_query_result'
-asr_query_result_val = [[],[],[],[]]
-
-if asr_query_result_key not in st.session_state:
-    st.session_state[asr_query_result_key] = asr_query_result_val
-
-# variables from control
-asr_selected_language_key = "asr_selected_language"
-asr_selected_language = analyzer.codes[0]
-asr_selected_language_changed = False
-if asr_selected_language_key not in st.session_state:
-    st.session_state[asr_selected_language_key] = asr_selected_language
-
-asr_selected_aspect_name_key = "asr_selected_aspect_name"
-asr_selected_aspect_name = analyzer.aspects_names_list[0]
-if asr_selected_aspect_name_key not in st.session_state:
-    st.session_state[asr_selected_aspect_name_key] = asr_selected_aspect_name
-asr_selected_aspect_name_changed = False
-
-asr_selected_clip_info_key = "asr_selected_clip_info"
-asr_selected_clip_info = None
-if asr_selected_clip_info_key not in st.session_state:
-    st.session_state[asr_selected_clip_info_key] = asr_selected_clip_info
-asr_selected_clip_info_changed = False
-
 ##################################################################
 #                             side bar 
 # [role]
@@ -324,8 +296,6 @@ tab_asr , tab_mt , tab_int = st.tabs(['ASR', 'MT', 'ASR & MT'])
 # asr unit test result
 with tab_asr:
     print('tab_asr_root')
-    
-    
     
     # result summary as data table
     with st.container():
@@ -496,11 +466,6 @@ with tab_asr:
             # language change
             with left_lt:
                 asr_selected_language = st.selectbox('choose a language : ', analyzer.codes, disabled=True)
-                # st.session_state[asr_query_result_key] = [[],[],[],[]]
-                # if st.session_state[asr_selected_language_key] != asr_selected_language:
-                #     st.session_state[asr_selected_language_key] = asr_selected_language
-                #     asr_selected_language_changed = True
-                #     print('selected language changed : ', asr_selected_language)
             # aspect value selection
             with right_lt:
                 asr_selected_aspect_name = st.selectbox('choose an aspect : ', analyzer.aspects_names_dict.keys())
@@ -508,12 +473,6 @@ with tab_asr:
                     asr_query_numeric_requested = True
                 else:
                     asr_query_others_requested = True
-                # st.session_state[asr_query_result_key] = [[],[],[],[]]
-                st.session_state[asr_selected_aspect_name_key] = asr_selected_aspect_name
-                # if st.session_state[asr_selected_aspect_name_key] != asr_selected_aspect_name:
-                #     st.session_state[asr_selected_aspect_name_key] = asr_selected_aspect_name
-                #     asr_selected_aspect_name_changed = True
-                #     print('selected aspect changed : ', asr_selected_aspect_name)
 
     st.write(' ')
 
@@ -570,7 +529,6 @@ with tab_asr:
                                                                            metric_max_query,
                                                                            metric_min_query, 
                                                                            ['wer', 'path', 'sentence', 'transcript'])
-                    st.session_state[asr_query_result_key] = asr_query_result
                     
                     st.toast(f'{len(asr_query_result[0])} is gathered')
 
@@ -589,22 +547,16 @@ with tab_asr:
                         asr_query_others_requested = True
                         print(aspect_val_query)
 
-                    # aspect_val_query = analyzer.aspects_values_dict[asr_selected_aspect_name][0]
-                    # aspect_name = analyzer.aspects_columns_dict[asr_selected_aspect_name]
                     asr_query_result = analyzer.get_testresults_by_categoric(analyzer.aspects_columns_dict[asr_selected_aspect_name], 
                                                                              aspect_val_query, 
                                                                              'wer', 
                                                                              metric_max_query, 
                                                                              metric_min_query, 
                                                                              ['wer', 'path', 'sentence', 'transcript'])
-                    st.session_state[asr_query_result_key] = asr_query_result
-                    
                     st.toast(f'{len(asr_query_result[0])} is gathered')
-                    
                     print('Retrieval after query:', len(asr_query_result[0]))
 
-                if(len(st.session_state[asr_query_result_key][0]) > 0):
-                    asr_query_result = st.session_state[asr_query_result_key]
+                if(len(asr_query_result[0]) > 0):
                     _sel_dict = {}
                     # ['wer', 'path', 'sentence', 'transcript']
                     for score, path, script, tscript in zip(asr_query_result[0], asr_query_result[1], asr_query_result[2], asr_query_result[3]):
@@ -615,7 +567,6 @@ with tab_asr:
 
                     # audio file list with addition info
                     asr_selected_clip_info = st.selectbox('audio clips by condition : ',  _sel_dict.keys())
-                    # print(asr_selected_clip_info, ':' , _sel_dict[asr_selected_clip_info], ' -> ' , _sel_dict[asr_selected_clip_info][0])
                     if (asr_selected_clip_info != None) and os.path.exists( _sel_dict[asr_selected_clip_info][0]):
                         st.audio(_sel_dict[asr_selected_clip_info][0])
                     else:
@@ -644,6 +595,7 @@ with tab_asr:
                 
                 print('page finished')
                 print()
+
 # mt unit test result
 with tab_mt:
     st.write('#### mt unit test result')
@@ -653,11 +605,3 @@ with tab_int:
     st.write('#### asr & mt integration test result')
 
 
-# try:
-#     pass
-
-# except Exception as e:
-#     pass
-# finally:
-#     # [view] if all model data is laoded
-# st.toast(f'{selected_file} is loaded.')
