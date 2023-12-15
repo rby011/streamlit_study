@@ -59,10 +59,9 @@ class TestAnalyzer(ABC):
         self.cdf = ar.prepocess_for_vanlysis(os.path.join(self.result_root_path, selected_file))
         
         # super set that each aspect has 
-        for aspect in self.aspects.keys():
-            print(self.aspects_values.keys())
-            aspect_vals = self.cdf[self.aspects_values[aspect]].dropna().unique().to_list()
-            self.aspects_values[aspect_vals]
+        for aspect in list(self.aspects.keys())[1:]: # except for utterance length
+            aspect_vals = list(self.cdf[self.aspects_columns[aspect]].dropna().unique())
+            self.aspects_values[aspect] = aspect_vals 
             
         # set configure flag
         self.configured = True
@@ -184,7 +183,21 @@ class TestAnalyzer(ABC):
         condition1 = (cdf[aspect_name] >= aspect_min) & (cdf[aspect_name] <= aspect_max)
         condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
         
-        print(aspect_max, aspect_min, metric_max, metric_min)
+        ret = []
+        for i, ret_col in enumerate(ret_columns):
+            ret.append(cdf[condition1 & condition2][ret_col].to_list())
+
+        return ret
+
+    def get_testresults_by_categoric(self, aspect_name:str, aspect_val:str, 
+                                     metric_name:str, metric_max:float, metric_min:float,
+                                     ret_columns:List[str]) -> List[List[str]]:
+        # abbrivation
+        cdf = self.cdf
+        
+        # conditional slicing for each given column in the ret_columns
+        condition1 = (cdf[aspect_name] == aspect_val)
+        condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
         
         ret = []
         for i, ret_col in enumerate(ret_columns):
@@ -465,17 +478,12 @@ with tab_asr:
                     aspect_max = sen_mx
                     aspect_min = sen_mx / 2
 
-                    # make query
-                    ret_list = analyzer.get_testresults_by_numeric(aspect_name=aspect_name,
-                                                                   aspect_max=aspect_max, 
-                                                                   aspect_min=aspect_min,
-                                                                   metric_name=metric_name,
-                                                                   metric_max=metric_max,
-                                                                   metric_min=metric_min,
-                                                                   ret_columns=ret_columns)
+                    # make default query , somewhat complex, later
+                    # ret_list = analyzer.get_testresults_by_numeric(aspect_name,aspect_max,aspect_min,
+                    #                                               metric_name,metric_max,metric_min,ret_columns)
                     
                     # slider bars for result query
-                    right_sab_col1, right_sab_col2, right_sab_col3, right_sab_col4, right_sab_col5 = st.columns([1,1,1,1,0.3])
+                    right_sab_col1, right_sab_col2, right_sab_col3, right_sab_col4, right_sab_col5 = st.columns([1,1,1,1,0.4])
                     with right_sab_col1:
                         metric_min = st.slider('WER Min', min_value=0.0, max_value=1.0, step=0.1, value=metric_min)
                     with right_sab_col2:
@@ -487,20 +495,15 @@ with tab_asr:
                     with right_sab_col5:
                         if st.button('Get'):
                             # set user query condition and query with the condition
-                            ret_list = analyzer.get_testresults_by_numeric(aspect_name=aspect_name,
-                                                                           aspect_max=aspect_max,
-                                                                           aspect_min=aspect_min,
-                                                                           metric_name=metric_name,
-                                                                           metric_max=metric_max,
-                                                                           metric_min=metric_min,
-                                                                           ret_columns=ret_columns)
+                            ret_list = analyzer.get_testresults_by_numeric(aspect_name,aspect_max,aspect_min,
+                                                                           metric_name,metric_max,metric_min, ret_columns)
                 else:
-                    aspect_vals = analyzer.aspects_values[selected_aspect]
+                    aspect_val = analyzer.aspects_values[selected_aspect][0]
                     aspect_name = analyzer.aspects_columns[selected_aspect]
-
-                    # get min , max range of aspect
-                    sen_mx = float(analyzer.cdf[aspect_name].max())  # TODO : MUST be located at other module
-                    sen_mn = float(analyzer.cdf[aspect_name].min())  # TODO : MUST be lcoated at ohter module
+                    
+                    # make default query, somewhat complex, later
+                    # ret_list = analyzer.get_testresults_by_categoric(aspect_name, aspect_val, metric_name, 
+                    #                                                 metric_max, metric_min, ret_columns)
 
                     # slider bars for result query
                     right_sab_col6, right_sab_col7, right_sab_col8, right_sab_col9 = st.columns([1,1,1,0.3])
@@ -509,13 +512,15 @@ with tab_asr:
                     with right_sab_col7:
                         metric_max = st.slider('WER Max', min_value=0.0, max_value=1.0, step=0.1, value=metric_max)
                     with right_sab_col8:
-                        st.multiselect('choose multiple',aspect_vals)
+                        aspect_val = st.selectbox(f'Choose {aspect_name}',analyzer.aspects_values[selected_aspect])
                     with right_sab_col9:
-                        st.button('Get')
-                
+                        if st.button('Get'):
+                            ret_list = analyzer.get_testresults_by_categoric(aspect_name, aspect_val, metric_name, 
+                                                                            metric_max, metric_min, ret_columns)
+
                 # dispay query result and compose ui components' value with the result
                 # make index table for results list component 
-                if(ret_list is not None): # if there is more than query result
+                if((ret_list != None) and (len(ret_list) > 0) ): # if there is more than query result
                     sel_dict = {}
                     for score, path, script,tscript in zip(ret_list[0], ret_list[1], ret_list[2], ret_list[3]):
                         key = f'[{round(score, ndigits=2)}]  '
@@ -548,7 +553,9 @@ with tab_asr:
                     st.write("No test results are found")
                     for _ in range(6):
                         st.write(' ')
-                        
+               
+                ret_list = None
+                         
                 st.write(' ')
       
 # mt unit test result
