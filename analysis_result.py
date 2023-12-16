@@ -1,18 +1,19 @@
-import os
+import os,re
 
 import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import streamlit as st
 from statsmodels.formula.api import ols
 from scipy.stats import pearsonr, shapiro
 from statsmodels.stats.anova import anova_lm
 from statsmodels.stats.diagnostic import het_breuschpagan
 from sklearn.preprocessing import MinMaxScaler
 
-from typing import List, Tuple, Any
+from typing import List, Tuple, Any,Optional
 from faker import Faker 
-
+from abc import ABC
 
 '''
 chart creation and statstic analysis for two numerical variable
@@ -25,6 +26,7 @@ chart creation and statstic analysis for two numerical variable
 
 : return : chart ojbect , string list to display 
 '''
+@st.cache_data
 def v_analyze_numerics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, List[str], Any]:
     # strings to display
     ret = []
@@ -62,6 +64,7 @@ chart creation and statstic analysis for two cateogrical variable
 
 : return : chart ojbect , average data frame for each category, string list to display 
 '''
+@st.cache_data
 def v_analyze_categorics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, List[str], pd.DataFrame]:
     ret = []
 
@@ -94,6 +97,7 @@ preprocess data to analyze and visualize such as categorization, one-hot encodin
 
 : return : preprocessed pandas dataframe 
 '''
+@st.cache_data
 def prepocess_for_vanlysis(file_path:str) -> pd.DataFrame:
    
     # read test result file, remove 'ref' and duplications
@@ -256,3 +260,235 @@ def _generate_dummy_result(suite_file_path:str, result_file_root:str, result_fil
         # save test result
         result_file_path = os.path.join(result_file_root, result_file_name)
         df.to_csv(f'{result_file_path} - {i}.csv', index=False)
+        
+
+class TestAnalyzer(ABC):
+    def __init__(self, result_root_path:str):
+        self.result_root_path = result_root_path
+        
+        # [assumption] result file name starts with testresult and its extesion is csv
+        pattern = r'^testresult.*\.csv$'  
+        self.result_files =  [f for f in os.listdir(result_root_path) if re.match(pattern, f)]
+        self.result_files = sorted(self.result_files, reverse=True)
+        
+        # construct index tables with bi-directional ways
+        self.file_to_idx = {file: idx for idx, file in enumerate(self.result_files)}
+        self.idx_to_file = {idx: file for idx, file in enumerate(self.result_files)}
+
+        # test result as dataframe
+        self.cdf = None     # current  (the selected)
+        self.pdf = None     # previsou (right before the selected, None if the selected is the first)
+        
+        # configuration flag
+        self.configured = False
+        
+        # language codes , this order SHOULD BE KEPT
+        self.codes = ['KR', 'EN', 'ES', 'FR', 'DE', 'IT', 'JP', 'CN', 'RU', 'PT', 
+                      'AR', 'HI', 'SW', 'NL', 'SV', 'PL', 'TR', 'TH', 'HE', 'DA']
+
+        # aspect identifiers at ui 
+        self.aspects_names_list = ['Utterance Length', 'Utterance Style' 'Speaker Age', 'Speaker Gender']
+
+        self.aspects_names_dict = {'Utterance Length':0, 
+                              'Utterance Style':1, 
+                              'Speaker Age':2, 
+                              'Speaker Gender':3}
+
+        # aspect identifiers at dataframe
+        self.aspects_columns_dict = {'Utterance Length':'sentence_len', 
+                                'Utterance Style':'style', 
+                                'Speaker Age':'age', 
+                                'Speaker Gender':'gender'}
+        
+        self.aspects_max_values_dict  = {'Utterance Length': None, 
+                                    'Utterance Style': None, 
+                                    'Speaker Age': None, 
+                                    'Speaker Gender':None}
+
+        self.aspects_min_values_dict  = {'Utterance Length': None, 
+                                    'Utterance Style': None, 
+                                    'Speaker Age': None, 
+                                    'Speaker Gender':None}
+        
+        self.aspects_values_dict = {}
+    '''
+    this can be extended so as to set strategy (what to and how to anlyze) in the future
+    
+    : param selected_file : one of test result file
+    
+    : return : test
+    ''' 
+    def configure(self, selected_file:str) -> None:
+        # preprocessed dataframe for the previous test result
+        print('selected file : ', selected_file)
+        _idx = self.file_to_idx[selected_file]
+        print('_idx : ', _idx, '/ ', (len(self.result_files) - 1))
+        if(_idx < (len(self.result_files) - 1)):
+            self.pdf = prepocess_for_vanlysis(os.path.join(self.result_root_path, self.idx_to_file[_idx+1]))
+        
+        # preprocessed dataframe from the selected test result
+        self.cdf = prepocess_for_vanlysis(os.path.join(self.result_root_path, selected_file))
+        
+        # super set that each aspect has
+        _an_key_list = list(self.aspects_names_dict.keys()) 
+        self.aspects_values_dict[_an_key_list[0]] = None
+        for aspect in _an_key_list[1:]: # except for utterance length
+            aspect_vals = list(self.cdf[self.aspects_columns_dict[aspect]].dropna().unique())
+            self.aspects_values_dict[aspect] = aspect_vals 
+        
+        # max values
+        self.aspects_max_values_dict[_an_key_list[0]] = float(self.cdf[self.aspects_columns_dict[self.aspects_names_list[0]]].max())
+        self.aspects_min_values_dict[_an_key_list[0]] = float(self.cdf[self.aspects_columns_dict[self.aspects_names_list[0]]].min())
+        
+        # set configure flag
+        self.configured = True
+    
+    '''
+    provide average kpi score 
+    '''
+    def average(self, metric_name:str, is_current:bool = True, ndigits:int = 3) -> float:
+        if(self.configured == False):
+            raise Exception('## [ERROR] Analyzer has not been configured yet.')
+
+        if(is_current == False):
+            if(self.pdf is None): 
+                return 0
+            return round(self.pdf[metric_name].mean(),ndigits)
+
+        return round(self.cdf[metric_name].mean(),ndigits)
+
+    '''
+    provides test reuslts with dataframes to display on the summary page.
+    - language table : 
+    - utternable table :
+    - age table :
+    - gender table :
+    - style table : 
+    
+    : param metric_name : wer, bleu, i_bleu 
+    : param type : ASR or MT 
+    '''
+    def get_dataframes(self, metric_name:str, type:str) -> List[pd.DataFrame]:
+        # for abreviation
+        cdf = self.cdf
+        pdf = self.pdf
+        codes = self.codes 
+        
+        frames = []
+        
+        # Langguage Dataframe for ASR, MT, Integration
+        # - fill random values into the data frame
+        ldf = random_dataframe(fcol_name='lang', fcol_values = codes, 
+                                  columns=[f'{metric_name}_c', f'{metric_name}_p'], 
+                                  make_last=True, type_last='diff')
+
+        # update with real test result only for KR
+        ldf.loc[0, [f'{metric_name}_c']] = cdf[metric_name].mean()
+        if pdf is not None:
+            ldf.loc[0, [f'{metric_name}_p']] = pdf[metric_name].mean()
+            ldf.loc[0, ['diff']] = cdf[metric_name].mean() - pdf[metric_name].mean()
+        else:
+            ldf.loc[0, [f'{metric_name}_p']] = None
+            ldf.loc[0, ['diff']] = None
+        frames.append(ldf)
+        
+        # Utterance Dataframe for ASR, MT, Integration
+        # - after dropping missing value
+        # - fill random values into the data frame
+        columns = cdf['sentence_len_type'].dropna().unique().tolist()
+        udf = random_dataframe(fcol_name='lang', fcol_values = codes, columns = columns)
+        # update with real test result only for KR
+        for col in columns[1:]:
+            udf.loc[0, [col]] = cdf.groupby('sentence_len_type')[metric_name].mean()[col]
+        frames.append(udf)
+        
+        if type == 'ASR':
+            # Age Dataframe for ASR
+            # - after dropping missing value
+            # - fill random values into the data frame
+            columns = cdf['age'].dropna().unique().tolist()
+            adf = random_dataframe(fcol_name='lang', fcol_values = codes, columns = columns)
+            # update with real test result only for KR
+            for col in columns[1:]:
+                adf.loc[0, [col]] = cdf.groupby('age')[metric_name].mean()[col]
+            frames.append(adf)
+            
+            # Gender Dataframe for ASR
+            # - after dropping missing value
+            # - fill random values into the data frame
+            columns = cdf['gender'].dropna().unique().tolist()
+            gdf = random_dataframe(fcol_name='lang', fcol_values = codes, columns = columns)
+            
+            # update with real test result only for KR
+            for col in columns[1:]:
+                gdf.loc[0, [col]] = cdf.groupby('gender')[metric_name].mean()[col]
+            frames.append(gdf)
+
+        # Style Dataframe for ASR, MT, Integration
+        # - after dropping missing value
+        # - fill random values into the data frame
+        columns = cdf['style'].dropna().unique().tolist()
+        sdf = random_dataframe(fcol_name='lang', fcol_values = codes, columns = columns)
+        # update with real test result only for KR
+        for col in columns[1:]:
+                sdf.loc[0, [col]] = cdf.groupby('style')[metric_name].mean()[col]
+        frames.append(sdf)
+        
+        return frames      
+    
+    def get_analysis_result(self, language:str, metric_name:str, aspect_name:str) -> Tuple[Any, List[str] , Optional[pd.DataFrame]]:
+        cdf = self.cdf
+        if(language != 'KR'):
+            return None
+        
+        y_var = metric_name
+        
+        aspect_index = self.aspects_names_dict[aspect_name] 
+        if aspect_index == 0:
+            x_var = 'sentence_len'
+            return v_analyze_numerics(cdf, x_var, y_var)
+        elif aspect_index == 1:
+            x_var = 'style'
+        elif aspect_index == 2:
+            x_var = 'age'
+        elif aspect_index == 3:    
+            x_var = 'gender'
+        return v_analyze_categorics(cdf, x_var, y_var)
+    
+    def get_testresults_by_numeric(self, aspect_name:str, aspect_max:float, aspect_min:float, 
+                                   metric_name:str, metric_max:float, metric_min:float,
+                                   ret_columns:List[str]) -> List[List[str]]:
+        # abbrivation
+        cdf = self.cdf
+        
+        # conditional slicing for each given column in the ret_columns
+        ret = []
+        condition1 = (cdf[aspect_name] >= aspect_min) & (cdf[aspect_name] <= aspect_max)
+        condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
+        for i, ret_col in enumerate(ret_columns):
+            ret.append(cdf[condition1 & condition2][ret_col].to_list())
+
+        # exceptional case
+        if len(ret) != len(ret_columns):
+            ret = [[],[],[],[]]
+        
+        return ret
+
+    def get_testresults_by_categoric(self, aspect_name:str, aspect_val:str, 
+                                     metric_name:str, metric_max:float, metric_min:float,
+                                     ret_columns:List[str]) -> List[List[str]]:
+        # abbrivation
+        cdf = self.cdf
+        
+        # conditional slicing for each given column in the ret_columns
+        ret = []
+        condition1 = (cdf[aspect_name] == aspect_val)
+        condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
+        for i, ret_col in enumerate(ret_columns):
+            ret.append(cdf[condition1 & condition2][ret_col].to_list())
+
+        # exceptional case
+        if len(ret) != len(ret_columns):
+            ret = [[],[],[],[]]
+
+        return ret
