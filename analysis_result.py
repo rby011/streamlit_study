@@ -11,7 +11,7 @@ from statsmodels.stats.anova import anova_lm
 from statsmodels.stats.diagnostic import het_breuschpagan
 from sklearn.preprocessing import MinMaxScaler
 
-from typing import List, Tuple, Any,Optional
+from typing import List, Tuple, Any,Optional, Dict
 from faker import Faker 
 from abc import ABC
 
@@ -98,10 +98,15 @@ preprocess data to analyze and visualize such as categorization, one-hot encodin
 : return : preprocessed pandas dataframe 
 '''
 @st.cache_data
-def prepocess_for_vanlysis(file_path:str) -> pd.DataFrame:
+def prepocess_for_vanlysis(file_path:str) -> Tuple[pd.DataFrame, Dict[str, List[str]]]:
    
     # read test result file, remove 'ref' and duplications
     df = pd.read_csv(file_path)
+    
+    # trim for string values
+    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+    
+    gdict = df.groupby('sentence')['ref'].apply(list).to_dict()
     df = df.drop(columns=['ref']).drop_duplicates().reset_index(drop=True)
 
     # create 'style' var : written or spoken
@@ -129,7 +134,7 @@ def prepocess_for_vanlysis(file_path:str) -> pd.DataFrame:
     df['sentence_len_type'] = df['sentence_len'].apply(lambda x: 'long' if x > q3 else ('short' if x < q1 else 'mid'))
     
     # return preprocessed dataframe
-    return df
+    return df, gdict
 
 
 '''
@@ -148,6 +153,7 @@ last             : some calculateion with the middle position columns,
 : param type_last   : currentl diff only supported
                     : last column value - first colum value in the given columns
 '''
+@st.cache_data
 def random_dataframe(fcol_name:str, fcol_values:List[str], 
                      columns:List[str], make_last:bool = False, type_last:str = '') -> pd.DataFrame:
     
@@ -202,6 +208,12 @@ def _generate_dummy_result(suite_file_path:str, result_file_root:str, result_fil
     # min-max scaling for "^n_*" columns
     cols_to_scale = df_org.filter(regex='^n_').columns
     df_org[cols_to_scale] = MinMaxScaler().fit_transform(df_org[cols_to_scale])
+
+    # translation
+    df_org['translation'] = df_org['sentence'].apply(lambda x: '[Translated]' + x)
+    
+    # transcript
+    df_org['transcript'] = df_org['sentence'].apply(lambda x: '[Transcripted]' + x)
 
     # path 
     df_org['path'].apply(lambda x: os.path.join('testsuites/cv-corpus-15.0-2023-09-08/ko/clips', 'path'))
@@ -276,9 +288,11 @@ class TestAnalyzer(ABC):
         self.idx_to_file = {idx: file for idx, file in enumerate(self.result_files)}
 
         # test result as dataframe
-        self.cdf = None     # current  (the selected)
-        self.pdf = None     # previsou (right before the selected, None if the selected is the first)
-        
+        self.cdf = None     # current test result (the selected)
+        self.pdf = None     # previsou test result (right before the selected, None if the selected is the first)
+        self.cgdict = None  # current sentence vs refs
+        self.pgdict = None  # previous sentence vs refs
+
         # configuration flag
         self.configured = False
         
@@ -324,10 +338,10 @@ class TestAnalyzer(ABC):
         _idx = self.file_to_idx[selected_file]
         print('_idx : ', _idx, '/ ', (len(self.result_files) - 1))
         if(_idx < (len(self.result_files) - 1)):
-            self.pdf = prepocess_for_vanlysis(os.path.join(self.result_root_path, self.idx_to_file[_idx+1]))
+            self.pdf , self.pgdict = prepocess_for_vanlysis(os.path.join(self.result_root_path, self.idx_to_file[_idx+1]))
         
         # preprocessed dataframe from the selected test result
-        self.cdf = prepocess_for_vanlysis(os.path.join(self.result_root_path, selected_file))
+        self.cdf, self.cgdict = prepocess_for_vanlysis(os.path.join(self.result_root_path, selected_file))
         
         # super set that each aspect has
         _an_key_list = list(self.aspects_names_dict.keys()) 
@@ -379,8 +393,8 @@ class TestAnalyzer(ABC):
         # Langguage Dataframe for ASR, MT, Integration
         # - fill random values into the data frame
         ldf = random_dataframe(fcol_name='lang', fcol_values = codes, 
-                                  columns=[f'{metric_name}_c', f'{metric_name}_p'], 
-                                  make_last=True, type_last='diff')
+                               columns=[f'{metric_name}_c', f'{metric_name}_p'], 
+                               make_last=True, type_last='diff')
 
         # update with real test result only for KR
         ldf.loc[0, [f'{metric_name}_c']] = cdf[metric_name].mean()
@@ -434,8 +448,8 @@ class TestAnalyzer(ABC):
                 sdf.loc[0, [col]] = cdf.groupby('style')[metric_name].mean()[col]
         frames.append(sdf)
         
-        return frames      
-    
+        return frames     
+     
     def get_analysis_result(self, language:str, metric_name:str, aspect_name:str) -> Tuple[Any, List[str] , Optional[pd.DataFrame]]:
         cdf = self.cdf
         if(language != 'KR'):
@@ -455,7 +469,7 @@ class TestAnalyzer(ABC):
             x_var = 'gender'
         return v_analyze_categorics(cdf, x_var, y_var)
     
-    def get_testresults_by_numeric(self, aspect_name:str, aspect_max:float, aspect_min:float, 
+    def get_testresults_by_numeric_asr(self,  aspect_name:str, aspect_max:float, aspect_min:float, 
                                    metric_name:str, metric_max:float, metric_min:float,
                                    ret_columns:List[str]) -> List[List[str]]:
         # abbrivation
@@ -465,16 +479,17 @@ class TestAnalyzer(ABC):
         ret = []
         condition1 = (cdf[aspect_name] >= aspect_min) & (cdf[aspect_name] <= aspect_max)
         condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
+        tdf = cdf[condition1 & condition2]
         for i, ret_col in enumerate(ret_columns):
-            ret.append(cdf[condition1 & condition2][ret_col].to_list())
-
+            ret.append(tdf[ret_col].to_list())
+            
         # exceptional case
         if len(ret) != len(ret_columns):
             ret = [[],[],[],[]]
         
         return ret
 
-    def get_testresults_by_categoric(self, aspect_name:str, aspect_val:str, 
+    def get_testresults_by_categoric_asr(self,  aspect_name:str, aspect_val:str, 
                                      metric_name:str, metric_max:float, metric_min:float,
                                      ret_columns:List[str]) -> List[List[str]]:
         # abbrivation
@@ -484,11 +499,42 @@ class TestAnalyzer(ABC):
         ret = []
         condition1 = (cdf[aspect_name] == aspect_val)
         condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
+        tdf = cdf[condition1 & condition2]
         for i, ret_col in enumerate(ret_columns):
-            ret.append(cdf[condition1 & condition2][ret_col].to_list())
+            ret.append(tdf[ret_col].to_list())
 
         # exceptional case
         if len(ret) != len(ret_columns):
             ret = [[],[],[],[]]
 
         return ret
+    
+    def get_testresults_by_numeric_mt(self,  aspect_name:str, aspect_max:float, aspect_min:float, 
+                                      metric_name:str, metric_max:float, metric_min:float) -> Tuple[List[str], Dict[str, List[str]], Dict[str, List[str]]]:
+        # abbrivation
+        cdf = self.cdf.copy()
+        
+        # conditional slicing for each given column in the ret_columns
+        condition1 = (cdf[aspect_name] >= aspect_min) & (cdf[aspect_name] <= aspect_max)
+        condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
+        cdf = cdf[condition1 & condition2]
+        
+        sentences = ('[' + cdf['bleu'].round(2).astype(str) + '] ' + cdf['sentence']).to_list()
+        transcript_dict = cdf[['sentence','transcript']].set_index('sentence')['transcript'].to_dict()
+        
+        return sentences, transcript_dict, self.cgdict
+    
+    def get_testresults_by_categoric_mt(self,  aspect_name:str, aspect_val:str, 
+                                     metric_name:str, metric_max:float, metric_min:float)-> Tuple[List[str], Dict[str, List[str]], Dict[str, List[str]]]:
+        # abbrivation
+        cdf = self.cdf.copy()
+        
+        # conditional slicing for each given column in the ret_columns
+        condition1 = (cdf[aspect_name] == aspect_val)
+        condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
+        cdf = cdf[condition1 & condition2]
+
+        sentences = ('[' + cdf['bleu'].round(2).astype(str) + '] ' + cdf['sentence']).to_list()
+        transcript_dict = cdf[['sentence','transcript']].set_index('sentence')['transcript'].to_dict()
+
+        return sentences, transcript_dict, self.cgdict
