@@ -6,7 +6,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import streamlit as st
 from statsmodels.formula.api import ols
-from scipy.stats import pearsonr, shapiro
+from scipy.stats import pearsonr, shapiro, levene
 from statsmodels.stats.anova import anova_lm
 from statsmodels.stats.diagnostic import het_breuschpagan
 from sklearn.preprocessing import MinMaxScaler
@@ -16,6 +16,7 @@ from faker import Faker
 from abc import ABC
 
 '''
+[cached]
 chart creation and statstic analysis for two numerical variable
 - scatter plot : display data in the space (x,y) 
 - pearson correlation , regression anlaysis 
@@ -26,34 +27,63 @@ chart creation and statstic analysis for two numerical variable
 
 : return : chart ojbect , string list to display 
 '''
-@st.cache_data
+# @st.cache_data
 def v_analyze_numerics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, List[str], Any]:
-    # strings to display
     ret = []
-    
-    print(f'analysis between {x_var} with {y_var}')
-    
-    # pearson analysis TODO : view setting MUST be located at other module
+
+    print(f'statistical analysis between {x_var} with {y_var}')
+    # pearson correlation
     correlation, p_value = pearsonr(df[x_var], df[y_var])
+    print(f'- pearson analysis : {correlation} with p-val {p_value}')
     ret.append(f'* pearson analysis')
     ret.append(f'    * coefficient ({correlation}) with p-value({p_value})')
-    ret.append(f"       * {x_var} normality (shapiro-wilk): {shapiro(df[x_var])[1]}")
+
+    statistics, p_value = shapiro(df[x_var])
+    print(f'-- normality using shaprio-wilik - {x_var} : {statistics} with p-val {p_value}')
+    ret.append(f"       * {x_var} normality (shapiro-wilk): {p_value}")
+
+    statistics, p_value = shapiro(df[y_var])
+    print(f'-- normality using shaprio-wilik - {x_var} : {statistics} with p-val {p_value}')
     ret.append(f"       * {y_var} normality (shapiro-wilk): {shapiro(df[y_var])[1]}")
 
     # regression analysis
     model = ols(f'{y_var} ~ {x_var}', data = df).fit()
+    print(f'- regression analysis : coefficient{{model.params[0]}} with p-val {model.f_pvalue}')
     ret.append(f'* regression ')
     ret.append(f'  * coefficient ({model.params[0]}) with p-value({model.f_pvalue})')
+
+    statistics, p_value = shapiro(model.resid)
+    print(f'-- normality using shaprio-wilik - residuals : {statistics} with p-val {p_value}')
     ret.append(f"     * residual nomality (shaprio-wilk): {shapiro(model.resid)[1]}")
-    ret.append(f"     * residual homogeneity of variances (breusch-pagan) : {het_breuschpagan(model.resid, model.model.exog)[1]}")
+
+    statistics, p_value, _, _ = het_breuschpagan(model.resid, model.model.exog)
+    print(f'-- homogeneity using breusch-pegan - residuals : {statistics} with p-val {p_value}')
+    ret.append(f"     * residual homogeneity of variances (breusch-pagan) : {p_value}")
     
     # chart
     fig, ax = plt.subplots()
     sns.scatterplot(x = x_var, y = y_var, data = df, ax=ax)
-    return fig , ret, []
+    
+    # data summary frame
+    quantiles = df[x_var].quantile([0.25, 0.5, 0.75])
+    q1 = df.loc[df[x_var] <= quantiles[0.25], y_var]
+    q2 = df.loc[(df[x_var] > quantiles[0.25]) & (df[x_var] <= quantiles[0.5]), y_var]
+    q3 = df.loc[(df[x_var] > quantiles[0.5]) & (df[x_var] <= quantiles[0.75]), y_var]
+    q4 = df.loc[df[x_var] > quantiles[0.75], y_var]
+
+    summary_df = pd.DataFrame({
+        'quantile': ['Q1<', 'Q2<', 'Q3<', 'Q4<'],
+        'mean': [q1.mean(), q2.mean(), q3.mean(), q4.mean()],
+        'var': [q1.var(), q2.var(), q3.var(), q4.var()],
+        'max': [q1.max(), q2.max(), q3.max(), q4.max()],
+        'min': [q1.min(), q2.min(), q3.min(), q4.min()],
+    })
+
+    return fig , ret, summary_df
 
 
 '''
+[cached]
 chart creation and statstic analysis for two cateogrical variable
 - violin plot : display box plot and distribution for each category 
 - regression anlaysis , one-way anova 
@@ -68,29 +98,39 @@ chart creation and statstic analysis for two cateogrical variable
 def v_analyze_categorics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, List[str], pd.DataFrame]:
     ret = []
 
-    # display statistical analysis result
-    # 1) average for each category
-    avg_df = pd.DataFrame(df.groupby(by=x_var)[y_var].mean())
+    # remove missing value
+    df = df.dropna(subset=[x_var, y_var])
 
-    # 2) analysis of variance
-    # fit regression model
-    formula = f'{y_var} ~ ' + ' + '.join(df.filter(regex=f'^{x_var}_').columns)
-    model = ols(formula, data = df).fit()
-    # one way anova and extract p-value from the result
-    p_val = anova_lm(model).iloc[0,-1]
+    # anonva
+    model = ols(f'{y_var} ~ C({x_var})', data=df).fit()
+    anova_table = anova_lm(model)
+    print(anova_table)
+    ret.append(f'* annova analysis (p-value) : {anova_table.iloc[0,-1]}')
 
-    ret.append(f'* anova analysis p-value : {p_val}')
-    ret.append(f"  * residual nomality (shaprio-wilk) : {shapiro(model.resid)[1]}")
-    ret.append(f"  * residual homogeneity of variances (breusch-pagan) : {het_breuschpagan(model.resid, model.model.exog)[1]}")
+    # nomality
+    stat, p = shapiro(df[y_var])
+    print(f'Shapiro-Wilk Test: statistic={stat}, p-value={p}')
+    ret.append(f'  * {y_var} normality (p-value) : {p}')
 
-    # chart
+    # homoscedasticity (variance)
+    groups = [group[y_var].dropna() for _ , group in df.groupby(x_var)]
+    stat, p = levene(*groups)
+    print(f'Levene Test: statistic={stat}, p-value={p}')
+    ret.append(f'  * {y_var} homogeneity (p-value) : {p}')
+
+    # y_var average table grouped by x_var
+    avg_df = df.groupby(x_var)[y_var].agg(['mean', 'var']).reset_index()
+    print(avg_df)
+
+    # viloin plot
     fig, ax = plt.subplots()
-    sns.violinplot(x=x_var, y=y_var, data=df , palette = sns.color_palette("hls", len(df[x_var].unique())),ax=ax)
-    
-    return fig, ret, avg_df
+    sns.violinplot(x=x_var, y=y_var, data=df , 
+                palette = sns.color_palette("hls", len(df[x_var].unique())),ax=ax)
 
+    return fig, ret, avg_df 
 
 '''
+[cached]
 preprocess data to analyze and visualize such as categorization, one-hot encoding
 
 : param file_path : file path to test result csv file
@@ -116,6 +156,9 @@ def prepocess_for_vanlysis(file_path:str) -> Tuple[pd.DataFrame, Dict[str, List[
     # create 'sentence_len'
     df['sentence_len'] = df['sentence'].apply(lambda x: len(x))
 
+    # create 'blue_diff' = i_bleu - bleu
+    df['bleu_diff'] = df['i_bleu'] - df['bleu']
+    
     # one hot encoding for norminal vars for regression
     columns=['age', 'style', 'gender']
     for col in columns:
@@ -138,6 +181,7 @@ def prepocess_for_vanlysis(file_path:str) -> Tuple[pd.DataFrame, Dict[str, List[
 
 
 '''
+[cached]
 make a fake data frame with the below structure
 
 [colum structure]
@@ -274,6 +318,9 @@ def _generate_dummy_result(suite_file_path:str, result_file_root:str, result_fil
         df.to_csv(f'{result_file_path} - {i}.csv', index=False)
         
 
+'''
+this is mediator from the aspect of data to display bridging the raw test result and what to show in ui 
+'''
 class TestAnalyzer(ABC):
     def __init__(self, result_root_path:str):
         self.result_root_path = result_root_path
@@ -301,30 +348,46 @@ class TestAnalyzer(ABC):
                       'AR', 'HI', 'SW', 'NL', 'SV', 'PL', 'TR', 'TH', 'HE', 'DA']
 
         # aspect identifiers at ui 
-        self.aspects_names_list = ['Utterance Length', 'Utterance Style' 'Speaker Age', 'Speaker Gender']
+        self.aspects_names_list = [
+            'Utterance Length', 
+            'Utterance Style' 
+            'Speaker Age', 
+            'Speaker Gender'
+        ]
 
-        self.aspects_names_dict = {'Utterance Length':0, 
-                              'Utterance Style':1, 
-                              'Speaker Age':2, 
-                              'Speaker Gender':3}
+        self.aspects_names_dict = {
+            'Utterance Length':0, 
+            'Utterance Style':1, 
+            'Speaker Age':2, 
+            'Speaker Gender':3
+            }
 
         # aspect identifiers at dataframe
-        self.aspects_columns_dict = {'Utterance Length':'sentence_len', 
-                                'Utterance Style':'style', 
-                                'Speaker Age':'age', 
-                                'Speaker Gender':'gender'}
+        self.aspects_columns_dict = {
+            'Utterance Length':'sentence_len', 
+            'Utterance Style':'style', 
+            'Speaker Age':'age', 
+            'Speaker Gender':'gender'
+        }
         
-        self.aspects_max_values_dict  = {'Utterance Length': None, 
-                                    'Utterance Style': None, 
-                                    'Speaker Age': None, 
-                                    'Speaker Gender':None}
+        self.aspects_max_values_dict  = {
+            'Utterance Length': None, 
+            'Utterance Style': None, 
+            'Speaker Age': None, 
+            'Speaker Gender':None
+        }
 
-        self.aspects_min_values_dict  = {'Utterance Length': None, 
-                                    'Utterance Style': None, 
-                                    'Speaker Age': None, 
-                                    'Speaker Gender':None}
+        self.aspects_min_values_dict  = {
+            'Utterance Length': None, 
+            'Utterance Style': None, 
+            'Speaker Age': None, 
+            'Speaker Gender':None
+        }
         
         self.aspects_values_dict = {}
+        self.metric_diff_min = None
+        self.metric_diff_min = None
+
     '''
     this can be extended so as to set strategy (what to and how to anlyze) in the future
     
@@ -350,9 +413,12 @@ class TestAnalyzer(ABC):
             aspect_vals = list(self.cdf[self.aspects_columns_dict[aspect]].dropna().unique())
             self.aspects_values_dict[aspect] = aspect_vals 
         
-        # max values
+        # max values of nornimal variables for each category, e.g., female   
         self.aspects_max_values_dict[_an_key_list[0]] = float(self.cdf[self.aspects_columns_dict[self.aspects_names_list[0]]].max())
         self.aspects_min_values_dict[_an_key_list[0]] = float(self.cdf[self.aspects_columns_dict[self.aspects_names_list[0]]].min())
+        
+        self.metric_diff_min = self.cdf['bleu_diff'].min()
+        self.metric_diff_max = self.cdf['bleu_diff'].max()
         
         # set configure flag
         self.configured = True
@@ -382,7 +448,7 @@ class TestAnalyzer(ABC):
     : param metric_name : wer, bleu, i_bleu 
     : param type : ASR or MT 
     '''
-    def get_dataframes(self, metric_name:str, type:str) -> List[pd.DataFrame]:
+    def get_dataframes_ut(self, metric_name:str, type:str) -> List[pd.DataFrame]:
         # for abreviation
         cdf = self.cdf
         pdf = self.pdf
@@ -449,8 +515,87 @@ class TestAnalyzer(ABC):
         frames.append(sdf)
         
         return frames     
-     
-    def get_analysis_result(self, language:str, metric_name:str, aspect_name:str) -> Tuple[Any, List[str] , Optional[pd.DataFrame]]:
+    
+    '''
+    provides test reuslts with dataframes to display on the summary page.
+    - language table   :  comparing ut and it  
+    - utternable table :  comparing ut and it
+    - style table      :  comparing ut and it
+    
+    : param metric_name:  metric name to compare. 
+                          [assumptioin] integration metric result start with 'i_' in the given data frame 
+    '''
+    def get_dataframes_it(self, metric_name:str) -> List[pd.DataFrame]:
+        # for abreviation
+        cdf = self.cdf
+        pdf = self.pdf
+        codes = self.codes 
+        
+        frames = []
+        i_metric_name = 'i_' + metric_name
+        u_metric_name = metric_name
+        
+        # Langguage Dataframe for Integration
+        # - fill random values into the data frame
+        ldf = random_dataframe(fcol_name='lang', fcol_values = codes, 
+                               columns=[f'{i_metric_name}_c', f'{i_metric_name}_p'], 
+                               make_last=True, type_last='diff')
+
+        # update with real test result only for KR
+        ldf.loc[0, [f'{i_metric_name}_c']] = cdf[i_metric_name].mean()
+        if pdf is not None:
+            ldf.loc[0, [f'{i_metric_name}_p']] = pdf[i_metric_name].mean()
+            ldf.loc[0, ['diff']] = cdf[i_metric_name].mean() - pdf[i_metric_name].mean()
+        else:
+            ldf.loc[0, [f'{i_metric_name}_p']] = None
+            ldf.loc[0, ['diff']] = None
+        frames.append(ldf)
+        
+        print(ldf.head(2))
+        
+        # Utterance Dataframe for Integration
+        # - after dropping missing value
+        # - fill random values into the data frame
+        # define frame scheme
+        columns = cdf['sentence_len_type'].dropna().unique().tolist()
+        # This MUST BE located at random_dataframe, but... not enough time
+        ext_cols = list(columns)
+        for i in range(len(columns)):
+            ext_cols.append(f'diff_{i}')
+        udf = random_dataframe(fcol_name='lang', fcol_values = codes, columns = ext_cols)
+
+        # update with real test result only for KR
+        for i, col in enumerate(columns[1:]): 
+            i_result = cdf.groupby('sentence_len_type')[i_metric_name].mean()[col]
+            u_result = cdf.groupby('sentence_len_type')[u_metric_name].mean()[col]
+            udf.loc[0, [f'diff_{i}']] = i_result
+            udf.loc[0, [f'diff_{i}']] = i_result - u_result
+        frames.append(udf)
+        
+        print(udf.head(2)) 
+        
+        # Style Dataframe for Integration
+        # - after dropping missing value
+        # - fill random values into the data frame
+        columns = cdf['style'].dropna().unique().tolist()
+        ext_cols = list(columns)
+        for i in range(len(columns)):
+            ext_cols.append(f'diff_{i}')
+        sdf = random_dataframe(fcol_name='lang', fcol_values = codes, columns = ext_cols)
+
+        # update with real test result only for KR
+        for  i, col in enumerate(columns[1:]): 
+            i_result = cdf.groupby('style')[i_metric_name].mean()[col]
+            u_result = cdf.groupby('style')[u_metric_name].mean()[col]
+            sdf.loc[0, [f'diff_{i}']] = i_result
+            sdf.loc[0, [f'diff_{i}']] = i_result - u_result
+        frames.append(sdf)
+        
+        print(sdf.head(2))
+        
+        return frames     
+    
+    def get_analysis_result_ut(self, language:str, metric_name:str, aspect_name:str) -> Tuple[Any, List[str] , Optional[pd.DataFrame]]:
         cdf = self.cdf
         if(language != 'KR'):
             return None
@@ -468,7 +613,33 @@ class TestAnalyzer(ABC):
         elif aspect_index == 3:    
             x_var = 'gender'
         return v_analyze_categorics(cdf, x_var, y_var)
+
+
+    def get_analysis_result_it(self, language:str, metric_name:str, aspect_name:str) -> Tuple[Any, List[str] , Optional[pd.DataFrame]]:
+        cdf = self.cdf
+        if(language != 'KR'):
+            return None
+        
+        # for simplicity, test for metric diff between unit and integration
+        # TODO : paired sample anlaysis or merge this into get_analysis_result  
+        y_var = metric_name + '_diff'  
+        
+        aspect_index = self.aspects_names_dict[aspect_name] 
+        if aspect_index == 0:
+            x_var = 'sentence_len'
+            return v_analyze_numerics(cdf, x_var, y_var)  
+        elif aspect_index == 1:
+            x_var = 'style'
+        elif aspect_index == 2:
+            x_var = 'age'
+        elif aspect_index == 3:    
+            x_var = 'gender'
+        return v_analyze_categorics(cdf, x_var, y_var)
+
     
+    ##
+    # Query by condition
+    ##
     def get_testresults_by_numeric_asr(self,  aspect_name:str, aspect_max:float, aspect_min:float, 
                                    metric_name:str, metric_max:float, metric_min:float,
                                    ret_columns:List[str]) -> List[List[str]]:
