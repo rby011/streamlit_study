@@ -11,9 +11,9 @@ from analysis_result import TestAnalyzer
 from typing import List, Tuple, Any, Optional
 from abc import ABC
 
-import tab_asr_app as asr
-import tab_mt_app as mt
-import tab_it_app as it
+import app_tab_asr as asr
+import app_tab_mt as mt
+import app_tab_it as it
 
 ##################################################################
 #                        app configuration
