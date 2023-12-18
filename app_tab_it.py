@@ -1,10 +1,5 @@
-import pandas as pd
 import streamlit as st
-import os, re
 from analysis_result import TestAnalyzer
-
-from typing import List, Tuple, Any, Optional
-from abc import ABC
 
 def show_page(analyzer:TestAnalyzer) -> None:
     # result summary as data table

@@ -1,11 +1,11 @@
 import os,re
-from pprint import pprint
-
 import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import streamlit as st
+
+from pprint import pprint
 from statsmodels.formula.api import ols
 from scipy.stats import pearsonr, shapiro, levene
 from statsmodels.stats.anova import anova_lm
