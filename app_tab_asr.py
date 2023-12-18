@@ -1,6 +1,8 @@
 import os
-import streamlit as st
+
 from analysis_result import TestAnalyzer
+
+import streamlit as st
 
 def show_page(analyzer:TestAnalyzer) -> None:
     # result summary as data table

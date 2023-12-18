@@ -1,11 +1,7 @@
-import os,re
 import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import streamlit as st
-
-from pprint import pprint
 from statsmodels.formula.api import ols
 from scipy.stats import pearsonr, shapiro, levene
 from statsmodels.stats.anova import anova_lm
@@ -15,6 +11,11 @@ from sklearn.preprocessing import MinMaxScaler
 from typing import List, Tuple, Any,Optional, Dict
 from faker import Faker 
 from abc import ABC
+
+import os,re
+from pprint import pprint
+
+import streamlit as st
 
 '''
 [cached]
@@ -467,6 +468,9 @@ class TestAnalyzer(ABC):
         print(f'# [Analyzer] requested average for {metric_name} : {round(self.cdf[metric_name].mean(),ndigits)}')
         return round(self.cdf[metric_name].mean(),ndigits)
 
+    ##
+    # Getting Dataframe to display
+    ##
     '''
     provides test reuslts with dataframes to display on the summary page.
     - language table : 
@@ -636,6 +640,9 @@ class TestAnalyzer(ABC):
         
         return frames     
     
+    ##
+    # Getting Analysis result to display on expander
+    ##
     def get_analysis_result_ut(self, language:str, metric_name:str, aspect_name:str) -> Tuple[Any, List[str] , Optional[pd.DataFrame]]:
         cdf = self.cdf
         if(language != 'KR'):
@@ -685,7 +692,9 @@ class TestAnalyzer(ABC):
     
     ##
     # Query by condition
+    # TODO The below methods could be merged into one or two, i think
     ##
+    # [FOR ASR]
     def get_testresults_by_numeric_asr(self,  aspect_name:str, aspect_max:float, aspect_min:float, 
                                    metric_name:str, metric_max:float, metric_min:float,
                                    ret_columns:List[str]) -> List[List[str]]:
@@ -734,6 +743,7 @@ class TestAnalyzer(ABC):
 
         return ret
     
+    # [FOR MT]
     def get_testresults_by_numeric_mt(self,  aspect_name:str, aspect_max:float, aspect_min:float, 
                                       metric_name:str, metric_max:float, metric_min:float) -> Tuple[List[str], Dict[str, List[str]], Dict[str, List[str]]]:
         # abbrivation
@@ -746,10 +756,10 @@ class TestAnalyzer(ABC):
         cdf = cdf[condition1 & condition2]
         
         sentences = ('[' + cdf['bleu'].round(2).astype(str) + '] ' + cdf['sentence']).to_list()
-        transcript_dict = cdf[['sentence','transcript']].set_index('sentence')['transcript'].to_dict()  # TODO CHECK transcript is correct ?
+        translation_dict = cdf[['sentence','translation']].set_index('sentence')['translation'].to_dict()  # TODO CHECK transcript is correct ?
         
-        print(f'- setences : {len(sentences)} , transcript : {len(transcript_dict)}, ground : {len(self.cgdict)}')
-        return sentences, transcript_dict, self.cgdict
+        print(f'- setences : {len(sentences)} , translation : {len(translation_dict)}, ground : {len(self.cgdict)}')
+        return sentences, translation_dict, self.cgdict # TODO split idx for getting key from sentences SHOULD BE returned
     
     def get_testresults_by_categoric_mt(self,  aspect_name:str, aspect_val:str, 
                                      metric_name:str, metric_max:float, metric_min:float)-> Tuple[List[str], Dict[str, List[str]], Dict[str, List[str]]]:
@@ -763,7 +773,46 @@ class TestAnalyzer(ABC):
         cdf = cdf[condition1 & condition2]
 
         sentences = ('[' + cdf['bleu'].round(2).astype(str) + '] ' + cdf['sentence']).to_list()
+        translation_dict = cdf[['sentence','translation']].set_index('sentence')['translation'].to_dict()
+
+        print(f'- setences : {len(sentences)} , translation : {len(translation_dict)}, ground : {len(self.cgdict)}')
+        return sentences, translation_dict, self.cgdict # TODO split idx for getting key from sentences SHOULD BE returned
+    
+    # [FOR IT]
+    def get_testresults_by_numeric_it(self,  aspect_name:str, aspect_max:float, aspect_min:float, 
+                                      metric_name:str, metric_max:float, metric_min:float) -> Tuple[List[str], Dict[str, List[str]], Dict[str, List[str]]]:
+        # abbrivation
+        cdf = self.cdf.copy()
+        print(f'# [Analyzer] it test result (numeric) query is requested with {metric_min} ~ {metric_max} for {aspect_max} ~ {aspect_min}')
+        
+        metric_name = metric_name +'_diff'  # TODO 
+        
+        # conditional slicing for each given column in the ret_columns
+        condition1 = (cdf[aspect_name] >= aspect_min) & (cdf[aspect_name] <= aspect_max)
+        condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
+        cdf = cdf[condition1 & condition2]
+        
+        sentences = ('[' + cdf[metric_name].round(4).astype(str) + '] ' + cdf['sentence']).to_list()
+        translation_dict = cdf[['sentence','translation']].set_index('sentence')['translation'].to_dict()  # TODO CHECK transcript is correct ?
+        
+        print(f'- setences : {len(sentences)} , translation : {len(translation_dict)}, ground : {len(self.cgdict)}')
+        return sentences, translation_dict, self.cgdict  # TODO split idx for getting key from sentences SHOULD BE returned 
+    
+    def get_testresults_by_categoric_it(self,  aspect_name:str, aspect_val:str, 
+                                     metric_name:str, metric_max:float, metric_min:float)-> Tuple[List[str], Dict[str, List[str]], Dict[str, List[str]]]:
+        # abbrivation
+        cdf = self.cdf.copy()
+        print(f'# [Analyzer] it test result (numeric) query is requested with {metric_min} ~ {metric_max} for {aspect_val}')
+        
+        metric_name = metric_name +'_diff'  # TODO
+        
+        # conditional slicing for each given column in the ret_columns
+        condition1 = (cdf[aspect_name] == aspect_val)
+        condition2 = (cdf[metric_name] <= metric_max) & (cdf[metric_name] >= metric_min)
+        cdf = cdf[condition1 & condition2]
+
+        sentences = ('[' + cdf['bleu'].round(2).astype(str) + '] ' + cdf['sentence']).to_list()
         transcript_dict = cdf[['sentence','transcript']].set_index('sentence')['transcript'].to_dict()
 
         print(f'- setences : {len(sentences)} , transcript : {len(transcript_dict)}, ground : {len(self.cgdict)}')
-        return sentences, transcript_dict, self.cgdict
+        return sentences, transcript_dict, self.cgdict # TODO split idx for getting key from sentences SHOULD BE returned

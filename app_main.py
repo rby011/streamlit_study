@@ -2,14 +2,12 @@
 # streamlit latest 2.0.19?
 # streamlit-ago
 ###############################################################################################
-
-import streamlit as st
-
 from analysis_result import TestAnalyzer
 import app_tab_asr as asr
 import app_tab_mt as mt
 import app_tab_it as it
 
+import streamlit as st
 ##################################################################
 #                        app configuration
 ##################################################################
@@ -69,14 +67,15 @@ st.write('This is a test result summary and statistical analysis for each aspect
 
 tab_asr , tab_mt , tab_it = st.tabs(['ASR', 'MT', 'ASR & MT'])
 
-# asr unit test result
-with tab_asr:
-    asr.show_page(analyzer)
+with st.spinner(f' Generating and analyzing the results unit tests and integration test'):
+    # asr unit test result
+    with tab_asr:
+        asr.show_page(analyzer)
 
-# mt unit test result
-with tab_mt:
-    mt.show_page(analyzer)
-    
-# mt & asr integration test result
-with tab_it:
-    it.show_page(analyzer)
+    # mt unit test result
+    with tab_mt:
+        mt.show_page(analyzer)
+        
+    # mt & asr integration test result
+    with tab_it:
+        it.show_page(analyzer)

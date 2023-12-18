@@ -1,5 +1,6 @@
-import streamlit as st
 from analysis_result import TestAnalyzer
+
+import streamlit as st
 
 def show_page(analyzer:TestAnalyzer) -> None:
     # result summary as data table
@@ -184,19 +185,21 @@ def show_page(analyzer:TestAnalyzer) -> None:
                     with right_sab_col1:
                         
                         # TODO : get Diff Max and Min , value (Max+Min)/2
-                        it_metric_min_query = st.slider('BLEU "Diff" Min', 
-                                                        min_value=analyzer.metric_diff_min, 
-                                                        max_value=analyzer.metric_diff_max, 
-                                                        step=0.01, 
-                                                        value=(analyzer.metric_diff_max + analyzer.metric_diff_min)/2, 
+                        it_metric_min_query = st.slider('BLEU "Diff" Min (%)', 
+                                                        min_value=analyzer.metric_diff_min * 100, 
+                                                        max_value=analyzer.metric_diff_max * 100, 
+                                                        step=0.1, 
+                                                        value=(analyzer.metric_diff_max + analyzer.metric_diff_min)/2 * 100, 
                                                         key='it-metric-min-numeric')
+                        it_metric_min_query = it_metric_min_query / 100
                     with right_sab_col2:
-                        it_metric_max_query = st.slider('BLEU "Diff" Max', 
-                                                        min_value=analyzer.metric_diff_min, 
-                                                        max_value=analyzer.metric_diff_max, 
-                                                        step=0.01, 
-                                                        value=analyzer.metric_diff_max, 
+                        it_metric_max_query = st.slider('BLEU "Diff" Max (%)', 
+                                                        min_value=analyzer.metric_diff_min * 100, 
+                                                        max_value=analyzer.metric_diff_max * 100, 
+                                                        step=0.1, 
+                                                        value=analyzer.metric_diff_max * 100, 
                                                         key='it-metric-max-numeric')
+                        it_metric_max_query = it_metric_max_query / 100
                     with right_sab_col3:
                         it_aspect_min_query = st.slider('Sentence Length Min', 
                                                min_value=analyzer.aspects_min_values_dict[it_selected_aspect_name], 
@@ -209,62 +212,76 @@ def show_page(analyzer:TestAnalyzer) -> None:
                                                value=analyzer.aspects_max_values_dict[it_selected_aspect_name], key ='it-max-aspect-numeric')
                         
                     it_aspect_name = analyzer.aspects_columns_dict[it_selected_aspect_name]
-                    # set user query condition and query with the condition
-                    # it_sel_item_list, it_trans_dict, it_grnd_dict = analyzer.get_testresults_by_numeric_mt(
-                    #                                                 analyzer.aspects_columns_dict[it_selected_aspect_name],
-                    #                                                 it_aspect_max_query, it_aspect_min_query, 
-                    #                                                 'bleu', mt_metric_max_query, mt_metric_min_query)
                     
-                    # print('# [UI][IT]Retrieval after query :', len(asr_query_result[0]))
+                    # set user query condition and query with the condition
+                    it_sel_item_list, it_trans_dict, it_grnd_dict = analyzer.get_testresults_by_numeric_it(
+                                                                    analyzer.aspects_columns_dict[it_selected_aspect_name],
+                                                                    it_aspect_max_query, it_aspect_min_query, 
+                                                                    'bleu', it_metric_max_query, it_metric_min_query)
+                    
+                    print('# [UI][IT] Retrieval after query :', len(it_sel_item_list[0]) if (it_sel_item_list is not None and len(it_sel_item_list) > 0) else None)
+                    
                 else:
                     # slider bars for result query
                     right_sab_col6, right_sab_col7, right_sab_col8 = st.columns([1,1,1])
                     with right_sab_col6:
-                        it_metric_min_query = st.slider('BLEU Diff Min', min_value=0.0, max_value=1.0, step=0.1, value=0.5, 
+                        it_metric_min_query = st.slider('BLEU "Diff" Min (%)', 
+                                                        min_value=analyzer.metric_diff_min * 100, 
+                                                        max_value=analyzer.metric_diff_max * 100, 
+                                                        step=0.1, 
+                                                        value=(analyzer.metric_diff_max + analyzer.metric_diff_min)/2 * 100, 
                                                         key='it-metric-min-others')
-                        print(it_metric_min_query)
+                        it_metric_min_query = it_metric_min_query / 100
                     with right_sab_col7:
-                        it_metric_max_query = st.slider('BLEU Diff Max', min_value=0.0, max_value=1.0, step=0.1, value=1.0, 
+                        it_metric_max_query = st.slider('BLEU "Diff" Max (%)', 
+                                                        min_value=analyzer.metric_diff_min * 100, 
+                                                        max_value=analyzer.metric_diff_max * 100, 
+                                                        step=0.1, 
+                                                        value=analyzer.metric_diff_max * 100, 
                                                         key='it-metric-max-others')
-                        print(it_metric_max_query)
+                        it_metric_max_query = it_metric_max_query /100
                     with right_sab_col8:
                         it_aspect_val_query = st.selectbox(f'Choose {it_selected_aspect_name}',
                                                            analyzer.aspects_values_dict[it_selected_aspect_name], key='it-aspect-others')
-                        it_query_others_requested = True
-                        print(it_aspect_val_query)
 
-                    # mt_sel_item_list, mt_trans_dict, mt_grnd_dict = analyzer.get_testresults_by_categoric_mt(
-                    #                                                         analyzer.aspects_columns_dict[mt_selected_aspect_name], 
-                    #                                                         mt_aspect_val_query, 'bleu', 
-                    #                                                         mt_metric_max_query, mt_metric_min_query)
+                    it_sel_item_list, it_trans_dict, it_grnd_dict = analyzer.get_testresults_by_categoric_it(
+                                                                            analyzer.aspects_columns_dict[it_selected_aspect_name], 
+                                                                            it_aspect_val_query, 'bleu', 
+                                                                            it_metric_max_query, it_metric_min_query)
                     
-                    # print('# [UI][IT] Retrieval after query :', len(mt_sel_item_list[0]) if (mt_sel_item_list is not None and len(mt_sel_item_list) > 0) else None)
+                    print('# [UI][IT] Retrieval after query :', len(it_sel_item_list[0]) if (it_sel_item_list is not None and len(it_sel_item_list) > 0) else None)
 
-                # if((mt_sel_item_list is not None) and (len(mt_sel_item_list) > 0)):
-                #     # audio file list with addition info
-                #     mt_sentence_info = st.selectbox('source setence : ',  mt_sel_item_list)
+                if((it_sel_item_list is not None) and (len(it_sel_item_list) > 0)):
+                    it_sentence_info = st.selectbox('source setence : ',  it_sel_item_list)
                     
-                #     mt_key_idx = 6
-                #     # scipt and transcript for the selected audio clip                    
-                #     right_sab_col6  , right_sab_col7 = st.columns([0.15, 0.85])
-                #     with right_sab_col6:
-                #         st.caption('translation')
-                #     with right_sab_col7:
-                #         st.write(mt_trans_dict[mt_sentence_info[mt_key_idx:].strip()])
-                #     right_sab_col8  , right_sab_col9 = st.columns([0.15, 0.85])
-                #     with right_sab_col8:
-                #         st.caption('refererences')
-                #     with right_sab_col9:
-                #         for line in mt_grnd_dict[mt_sentence_info[mt_key_idx:].strip()]:
-                #             st.write(line)
-                #     print('# [UI][IT] Retrieval result is displayed')
-                # else: # if there is no result
-                #     for _ in range(6):
-                #         st.write(' ')
-                #     st.write("Nothing 💨 💨 💨")
-                #     for _ in range(6):
-                #         st.write(' ')
-                #     print('# [UI][IT] Not retrieval result to display')
+                    it_key_idx = it_sentence_info.find(']')  # TODO which one is better comparing previsous checking logic? 
+                    if it_key_idx != -1:
+                        it_key_idx = it_key_idx + 2
+                        # scipt and transcript for the selected audio clip                    
+                        right_sab_col6  , right_sab_col7 = st.columns([0.15, 0.85])
+                        with right_sab_col6:
+                            st.caption('translation')
+                        with right_sab_col7:
+                            key = it_sentence_info[it_key_idx:].strip()
+                            st.write(it_trans_dict[key])
+                        right_sab_col8  , right_sab_col9 = st.columns([0.15, 0.85])
+                        with right_sab_col8:
+                            st.caption('refererences')
+                        with right_sab_col9:
+                            key = it_sentence_info[it_key_idx:].strip()
+                            for line in it_grnd_dict[key]:
+                                st.write(line)
+                    else:
+                        st.write("Nothing 💨 💨 💨")
+                        
+                    print('# [UI][IT] Retrieval result is displayed')
+                else: # if there is no result
+                    for _ in range(6):
+                        st.write(' ')
+                    st.write("Nothing 💨 💨 💨")
+                    for _ in range(6):
+                        st.write(' ')
+                    print('# [UI][IT] Not retrieval result to display')
                
                 st.write(' ')
                 print('# [UI][IT] it page finished')
