@@ -7,11 +7,10 @@ from typing import List, Tuple, Any, Optional
 from abc import ABC
 
 def show_page(analyzer:TestAnalyzer) -> None:
-    print('tab_int_root')
     # result summary as data table
     with st.container():
 
-        print('tab_int_root - result summary')
+        print('# [UI][IT] tab_int_root - result summary')
 
         st.write('#### Result Summary')
         st.write('''This provides a test result table with which you can which types of utterances have
@@ -32,10 +31,6 @@ def show_page(analyzer:TestAnalyzer) -> None:
         udf.iloc[:, 1:] = udf.iloc[:, 1:].round(2)
         sdf.iloc[:, 1:] = sdf.iloc[:, 1:].round(2)
 
-        print(ldf.head(2))
-        print(udf.head(2))
-        print(sdf.head(2))
-        
         lcol, ucol, scol = st.columns([5, 7, 5], gap='small')
         
         # Index(['lang', 'i_blue_c', 'i_blue_p', 'diff'], dtype='object')
@@ -137,10 +132,11 @@ def show_page(analyzer:TestAnalyzer) -> None:
                 column_order=['lang', 'spoken', 'diff_0', 'written', 'diff_1'],
                 hide_index=True,
             )
+        print('# [UI][IT] dataframe is displayed')
 
     # statistical analysis title & list boxes
     with st.container(): 
-        print('[IT] tab_it_root - detail analysis')
+        print('# [UI][IT] tab_it_root - detail analysis')
 
         st.write('#### Detail Analysis')
         left_sa, right_sa = st.columns([0.4, 0.6])
@@ -159,12 +155,13 @@ def show_page(analyzer:TestAnalyzer) -> None:
                     it_query_numeric_requested = True
                 else:
                     it_query_others_requested = True
+        print('# [UI][IT] Query condition component are displayed')
 
     st.write(' ')
     
     # detail analysis body
     with st.container():
-        print('[IT] tab_it_root - detail analysis body')
+        print('# [UI][IT] tab_it_root - detail analysis body')
         left_sab, right_sab = st.columns([0.3, 0.7])
         # chart and statistical analysis
         with left_sab:
@@ -177,6 +174,7 @@ def show_page(analyzer:TestAnalyzer) -> None:
                 st.dataframe(frame)
                 st.write(f'<b> Anlaysis the average-scrore difference by qunatile</b>', unsafe_allow_html=True)
                 st.write('\n'.join(info))
+        print('# [UI][IT] data distribution and analysis expander is dispalyed')
                 
         # test-result query and display the query result
         with right_sab:
@@ -197,7 +195,6 @@ def show_page(analyzer:TestAnalyzer) -> None:
                                                         step=0.01, 
                                                         value=(analyzer.metric_diff_max + analyzer.metric_diff_min)/2, 
                                                         key='it-metric-min-numeric')
-                        print(it_metric_min_query)
                     with right_sab_col2:
                         it_metric_max_query = st.slider('BLEU "Diff" Max', 
                                                         min_value=analyzer.metric_diff_min, 
@@ -205,19 +202,16 @@ def show_page(analyzer:TestAnalyzer) -> None:
                                                         step=0.01, 
                                                         value=analyzer.metric_diff_max, 
                                                         key='it-metric-max-numeric')
-                        print(it_metric_max_query)
                     with right_sab_col3:
                         it_aspect_min_query = st.slider('Sentence Length Min', 
                                                min_value=analyzer.aspects_min_values_dict[it_selected_aspect_name], 
                                                max_value=analyzer.aspects_max_values_dict[it_selected_aspect_name], 
                                                value=analyzer.aspects_max_values_dict[it_selected_aspect_name]/2, key = 'it-min-aspect-numeric')
-                        print(it_aspect_min_query)
                     with right_sab_col4:
                         it_aspect_max_query = st.slider('Sentence Length Max ', 
                                                min_value=analyzer.aspects_min_values_dict[it_selected_aspect_name], 
                                                max_value=analyzer.aspects_max_values_dict[it_selected_aspect_name], 
                                                value=analyzer.aspects_max_values_dict[it_selected_aspect_name], key ='it-max-aspect-numeric')
-                        print(it_aspect_max_query)
                         
                     it_aspect_name = analyzer.aspects_columns_dict[it_selected_aspect_name]
                     # set user query condition and query with the condition
@@ -226,7 +220,7 @@ def show_page(analyzer:TestAnalyzer) -> None:
                     #                                                 it_aspect_max_query, it_aspect_min_query, 
                     #                                                 'bleu', mt_metric_max_query, mt_metric_min_query)
                     
-                    # print('[MT] Retrieval after query :', len(mt_sel_item_list[0]) if (mt_sel_item_list is not None and len(mt_sel_item_list) > 0) else None)
+                    # print('# [UI][IT]Retrieval after query :', len(asr_query_result[0]))
                 else:
                     # slider bars for result query
                     right_sab_col6, right_sab_col7, right_sab_col8 = st.columns([1,1,1])
@@ -249,7 +243,7 @@ def show_page(analyzer:TestAnalyzer) -> None:
                     #                                                         mt_aspect_val_query, 'bleu', 
                     #                                                         mt_metric_max_query, mt_metric_min_query)
                     
-                    # print('[MT] Retrieval after query :', len(mt_sel_item_list[0]) if (mt_sel_item_list is not None and len(mt_sel_item_list) > 0) else None)
+                    # print('# [UI][IT] Retrieval after query :', len(mt_sel_item_list[0]) if (mt_sel_item_list is not None and len(mt_sel_item_list) > 0) else None)
 
                 # if((mt_sel_item_list is not None) and (len(mt_sel_item_list) > 0)):
                 #     # audio file list with addition info
@@ -268,13 +262,15 @@ def show_page(analyzer:TestAnalyzer) -> None:
                 #     with right_sab_col9:
                 #         for line in mt_grnd_dict[mt_sentence_info[mt_key_idx:].strip()]:
                 #             st.write(line)
+                #     print('# [UI][IT] Retrieval result is displayed')
                 # else: # if there is no result
                 #     for _ in range(6):
                 #         st.write(' ')
                 #     st.write("Nothing 💨 💨 💨")
                 #     for _ in range(6):
                 #         st.write(' ')
+                #     print('# [UI][IT] Not retrieval result to display')
                
                 st.write(' ')
-                print('[IT] it page finished')
+                print('# [UI][IT] it page finished')
                 print()

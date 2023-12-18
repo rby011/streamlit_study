@@ -7,11 +7,10 @@ from typing import List, Tuple, Any, Optional
 from abc import ABC
 
 def show_page(analyzer:TestAnalyzer) -> None:
-    print('tab_asr_root')
     # result summary as data table
     with st.container():
 
-        print('tab_asr_root - result summary')
+        print('# [UI][ASR]tab_asr_root - result summary')
 
         st.write('#### Result Summary')
         st.write('''This provides a test result table with which you can which types of utterances have
@@ -162,10 +161,11 @@ def show_page(analyzer:TestAnalyzer) -> None:
                 column_order=['lang', 'spoken', 'written'],
                 hide_index=True,
             )
+        print('# [UI][ASR] dataframe is displayed')
 
     # statistical analysis title & list boxes
-    with st.container(): 
-        print('tab_asr_root - detail analysis')
+    with st.container():
+        print('# [UI][ASR] tab_asr_root - detail analysis')
 
         st.write('#### Detail Analysis')
         left_sa, right_sa = st.columns([0.4, 0.6])
@@ -184,12 +184,13 @@ def show_page(analyzer:TestAnalyzer) -> None:
                     asr_query_numeric_requested = True
                 else:
                     asr_query_others_requested = True
+        print('# [UI][ASR] Query condition component are displayed')
 
     st.write(' ')
 
     # detail analysis body
     with st.container():
-        print('tab_asr_root - detail analysis body')
+        print('# [UI][ASR] tab_asr_root - detail analysis body')
         
         left_sab, right_sab = st.columns([0.3, 0.7])
         # chart and statistical analysis
@@ -203,6 +204,7 @@ def show_page(analyzer:TestAnalyzer) -> None:
                 st.dataframe(frame)
                 st.write(f'<b> Statistic anlaysis for the difference of average-scrore by groups</b>', unsafe_allow_html=True)
                 st.write('\n'.join(info))
+        print('# [UI][ASR] data distribution and analysis expander is dispalyed')
                 
         # test-result query and display the query result
         with right_sab:
@@ -217,22 +219,18 @@ def show_page(analyzer:TestAnalyzer) -> None:
                     right_sab_col1, right_sab_col2, right_sab_col3, right_sab_col4 = st.columns([1,1,1,1])
                     with right_sab_col1:
                         metric_min_query = st.slider('WER Min', min_value=0.0, max_value=1.0, step=0.1, value=0.5)
-                        print(metric_min_query)
                     with right_sab_col2:
                         metric_max_query = st.slider('WER Max', min_value=0.0, max_value=1.0, step=0.1, value=1.0)
-                        print(metric_max_query)
                     with right_sab_col3:
                         aspect_min_query = st.slider('Sentence Length Min', 
                                                min_value=analyzer.aspects_min_values_dict[asr_selected_aspect_name], 
                                                max_value=analyzer.aspects_max_values_dict[asr_selected_aspect_name], 
                                                value=analyzer.aspects_max_values_dict[asr_selected_aspect_name]/2)
-                        print(aspect_min_query)
                     with right_sab_col4:
                         aspect_max_query = st.slider('Sentence Length Max ', 
                                                min_value=analyzer.aspects_min_values_dict[asr_selected_aspect_name], 
                                                max_value=analyzer.aspects_max_values_dict[asr_selected_aspect_name], 
                                                value=analyzer.aspects_max_values_dict[asr_selected_aspect_name])
-                        print(aspect_max_query)
                         
                     aspect_name = analyzer.aspects_columns_dict[asr_selected_aspect_name]
                     # set user query condition and query with the condition
@@ -243,23 +241,18 @@ def show_page(analyzer:TestAnalyzer) -> None:
                                                                            metric_max_query,
                                                                            metric_min_query, 
                                                                            ['wer', 'path', 'sentence', 'transcript'])
-                    
-                    # st.toast(f'{len(asr_query_result[0])} is gathered')
 
-                    print('Retrieval after query :', len(asr_query_result[0]))
+                    print('# [UI][ASR]Retrieval after query :', len(asr_query_result[0]))
                 else:
                     # slider bars for result query
                     right_sab_col6, right_sab_col7, right_sab_col8 = st.columns([1,1,1])
                     with right_sab_col6:
                         metric_min_query = st.slider('WER Min', min_value=0.0, max_value=1.0, step=0.1, value=0.5)
-                        print(metric_min_query)
                     with right_sab_col7:
                         metric_max_query = st.slider('WER Max', min_value=0.0, max_value=1.0, step=0.1, value=1.0)
-                        print(metric_max_query)
                     with right_sab_col8:
                         aspect_val_query = st.selectbox(f'Choose {asr_selected_aspect_name}',analyzer.aspects_values_dict[asr_selected_aspect_name])
                         asr_query_others_requested = True
-                        print(aspect_val_query)
 
                     asr_query_result = analyzer.get_testresults_by_categoric_asr(analyzer.aspects_columns_dict[asr_selected_aspect_name], 
                                                                              aspect_val_query, 
@@ -268,7 +261,7 @@ def show_page(analyzer:TestAnalyzer) -> None:
                                                                              metric_min_query, 
                                                                              ['wer', 'path', 'sentence', 'transcript'])
                     # st.toast(f'{len(asr_query_result[0])} is gathered')
-                    print('Retrieval after query:', len(asr_query_result[0]))
+                    print('# [UI][ASR] Retrieval after query:', len(asr_query_result[0]))
 
                 if(len(asr_query_result[0]) > 0):
                     _sel_dict = {}
@@ -298,13 +291,15 @@ def show_page(analyzer:TestAnalyzer) -> None:
                         st.caption('transcript')
                     with right_sab_col9:
                         st.write(_sel_dict[asr_selected_clip_info][2])
+                    print('# [UI][ASR] Retrieval result is displayed')
                 else: # if there is no result
                     for _ in range(6):
                         st.write(' ')
                     st.write("Nothing 💨 💨 💨")
                     for _ in range(6):
                         st.write(' ')
+                    print('# [UI][ASR] Not retrieval result to display')
                
                 st.write(' ')
-                print('asr page finished')
+                print('# [UI][ASR] asr page finished')
                 print()

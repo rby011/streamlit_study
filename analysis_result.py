@@ -1,4 +1,5 @@
 import os,re
+from pprint import pprint
 
 import pandas as pd
 import numpy as np
@@ -27,8 +28,9 @@ chart creation and statstic analysis for two numerical variable
 
 : return : chart ojbect , string list to display 
 '''
-# @st.cache_data
+@st.cache_data
 def v_analyze_numerics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, List[str], Any]:
+    print(f'# [Engine] analysis begin for numeric x, y vars : {x_var} , {y_var}')
     ret = []
 
     print(f'statistical analysis between {x_var} with {y_var}')
@@ -96,6 +98,8 @@ chart creation and statstic analysis for two cateogrical variable
 '''
 @st.cache_data
 def v_analyze_categorics(df:pd.DataFrame , x_var:str, y_var:str) -> Tuple[Any, List[str], pd.DataFrame]:
+    print(f'# [Engine] analysis begin for norminal x, y vars : {x_var} , {y_var}')
+
     ret = []
 
     # remove missing value
@@ -139,6 +143,7 @@ preprocess data to analyze and visualize such as categorization, one-hot encodin
 '''
 @st.cache_data
 def prepocess_for_vanlysis(file_path:str) -> Tuple[pd.DataFrame, Dict[str, List[str]]]:
+    print(f'# [Engine] preprocessing begin for a test result : {file_path}')
    
     # read test result file, remove 'ref' and duplications
     df = pd.read_csv(file_path)
@@ -152,12 +157,15 @@ def prepocess_for_vanlysis(file_path:str) -> Tuple[pd.DataFrame, Dict[str, List[
     # create 'style' var : written or spoken
     df['accents'] = df['accents'].replace({'사투리가 조금 있는':1, '서울':1, '경기도':1, 'reading book':0, '일반적인 성인 남성 ':1, 'Seoul':1})
     df['style'] = df['accents'].apply(lambda x: 'written' if x == 0 else 'spoken')
-
+    print('- create style var with accents')
+    
     # create 'sentence_len'
     df['sentence_len'] = df['sentence'].apply(lambda x: len(x))
+    print('- create sentence_len var with accents')
 
     # create 'blue_diff' = i_bleu - bleu
     df['bleu_diff'] = df['i_bleu'] - df['bleu']
+    print('- create bleu_diff var with accents')
     
     # one hot encoding for norminal vars for regression
     columns=['age', 'style', 'gender']
@@ -167,7 +175,8 @@ def prepocess_for_vanlysis(file_path:str) -> Tuple[pd.DataFrame, Dict[str, List[
     for col in columns:
         df[col] = df[col+'_org']
     df = df.drop(columns=[col+'_org' for col in columns])
-    
+    print(f'- one hot encoding : {columns}')
+
     # categorize sentence length for table & create 'sentence_len_type'  
     # - long : larger than 3rd quantile 
     # - mid  : 1st  ~ 3rd quantile
@@ -175,6 +184,7 @@ def prepocess_for_vanlysis(file_path:str) -> Tuple[pd.DataFrame, Dict[str, List[
     q1 = df.sentence_len.quantile(q = 0.25) 
     q3 = df.sentence_len.quantile(q = 0.75)
     df['sentence_len_type'] = df['sentence_len'].apply(lambda x: 'long' if x > q3 else ('short' if x < q1 else 'mid'))
+    print(f'- categorize sentence_len into short, mid, long')
     
     # return preprocessed dataframe
     return df, gdict
@@ -201,11 +211,14 @@ last             : some calculateion with the middle position columns,
 def random_dataframe(fcol_name:str, fcol_values:List[str], 
                      columns:List[str], make_last:bool = False, type_last:str = '') -> pd.DataFrame:
     
+    print(f'# [Engine] create dataframe to display ')
+        
     columns.insert(0, fcol_name)
     if(make_last & (len(columns) > 1)):
         columns.append(type_last)
     
     rdf = pd.DataFrame(columns = columns)
+    print(f'- make columns : {columns}')
         
     for r_idx, fcol_val in enumerate(fcol_values):
         # dictionary to fill into a raw
@@ -222,6 +235,9 @@ def random_dataframe(fcol_name:str, fcol_values:List[str],
             
         # fill into this raw
         rdf.loc[r_idx] = tmp
+        
+    print(f'- construct dataframe  : ')
+    print(rdf.head(2))
     
     return rdf
 
@@ -323,12 +339,16 @@ this is mediator from the aspect of data to display bridging the raw test result
 '''
 class TestAnalyzer(ABC):
     def __init__(self, result_root_path:str):
+        print('# [Analyzer] TestAnalyzer initialization')
+        
         self.result_root_path = result_root_path
         
         # [assumption] result file name starts with testresult and its extesion is csv
         pattern = r'^testresult.*\.csv$'  
         self.result_files =  [f for f in os.listdir(result_root_path) if re.match(pattern, f)]
         self.result_files = sorted(self.result_files, reverse=True)
+        print('- initialization with results files :')
+        print(' \n'.join(self.result_files))
         
         # construct index tables with bi-directional ways
         self.file_to_idx = {file: idx for idx, file in enumerate(self.result_files)}
@@ -396,15 +416,19 @@ class TestAnalyzer(ABC):
     : return : test
     ''' 
     def configure(self, selected_file:str) -> None:
+        print(f'# [Analyzer] configure analyzer with test result files')
+        
         # preprocessed dataframe for the previous test result
         print('selected file : ', selected_file)
         _idx = self.file_to_idx[selected_file]
         print('_idx : ', _idx, '/ ', (len(self.result_files) - 1))
         if(_idx < (len(self.result_files) - 1)):
             self.pdf , self.pgdict = prepocess_for_vanlysis(os.path.join(self.result_root_path, self.idx_to_file[_idx+1]))
+            print(f'- preprocess previsou test result : {self.idx_to_file[_idx+1]}')
         
         # preprocessed dataframe from the selected test result
         self.cdf, self.cgdict = prepocess_for_vanlysis(os.path.join(self.result_root_path, selected_file))
+        print(f'- preprocess current test result : {selected_file}')
         
         # super set that each aspect has
         _an_key_list = list(self.aspects_names_dict.keys()) 
@@ -422,6 +446,11 @@ class TestAnalyzer(ABC):
         
         # set configure flag
         self.configured = True
+        print(f'- extract simple statistics (max, min)')
+        pprint(self.aspects_max_values_dict)
+        pprint(self.aspects_min_values_dict)
+        pprint(self.metric_diff_max)
+        pprint(self.metric_diff_min)
     
     '''
     provide average kpi score 
@@ -435,6 +464,7 @@ class TestAnalyzer(ABC):
                 return 0
             return round(self.pdf[metric_name].mean(),ndigits)
 
+        print(f'# [Analyzer] requested average for {metric_name} : {round(self.cdf[metric_name].mean(),ndigits)}')
         return round(self.cdf[metric_name].mean(),ndigits)
 
     '''
@@ -449,6 +479,8 @@ class TestAnalyzer(ABC):
     : param type : ASR or MT 
     '''
     def get_dataframes_ut(self, metric_name:str, type:str) -> List[pd.DataFrame]:
+        print(f'# [Analyzer] requested to make data frames for unit test with {metric_name} and {type}')
+        
         # for abreviation
         cdf = self.cdf
         pdf = self.pdf
@@ -458,11 +490,13 @@ class TestAnalyzer(ABC):
         
         # Langguage Dataframe for ASR, MT, Integration
         # - fill random values into the data frame
+        print(f'- language dataframe created')
         ldf = random_dataframe(fcol_name='lang', fcol_values = codes, 
                                columns=[f'{metric_name}_c', f'{metric_name}_p'], 
                                make_last=True, type_last='diff')
 
         # update with real test result only for KR
+        print(f'- language dataframe is updated with real test result for KR')
         ldf.loc[0, [f'{metric_name}_c']] = cdf[metric_name].mean()
         if pdf is not None:
             ldf.loc[0, [f'{metric_name}_p']] = pdf[metric_name].mean()
@@ -472,9 +506,10 @@ class TestAnalyzer(ABC):
             ldf.loc[0, ['diff']] = None
         frames.append(ldf)
         
-        # Utterance Dataframe for ASR, MT, Integration
+        # Utterance Dataframe for ASR, MT
         # - after dropping missing value
         # - fill random values into the data frame
+        print(f'- utterance length dataframe is created')
         columns = cdf['sentence_len_type'].dropna().unique().tolist()
         udf = random_dataframe(fcol_name='lang', fcol_values = codes, columns = columns)
         # update with real test result only for KR
@@ -486,6 +521,7 @@ class TestAnalyzer(ABC):
             # Age Dataframe for ASR
             # - after dropping missing value
             # - fill random values into the data frame
+            print(f'- age dataframe is created')
             columns = cdf['age'].dropna().unique().tolist()
             adf = random_dataframe(fcol_name='lang', fcol_values = codes, columns = columns)
             # update with real test result only for KR
@@ -496,6 +532,7 @@ class TestAnalyzer(ABC):
             # Gender Dataframe for ASR
             # - after dropping missing value
             # - fill random values into the data frame
+            print(f'- gender dataframe is created')
             columns = cdf['gender'].dropna().unique().tolist()
             gdf = random_dataframe(fcol_name='lang', fcol_values = codes, columns = columns)
             
@@ -507,6 +544,7 @@ class TestAnalyzer(ABC):
         # Style Dataframe for ASR, MT, Integration
         # - after dropping missing value
         # - fill random values into the data frame
+        print(f'- style dataframe is created')
         columns = cdf['style'].dropna().unique().tolist()
         sdf = random_dataframe(fcol_name='lang', fcol_values = codes, columns = columns)
         # update with real test result only for KR
@@ -526,6 +564,7 @@ class TestAnalyzer(ABC):
                           [assumptioin] integration metric result start with 'i_' in the given data frame 
     '''
     def get_dataframes_it(self, metric_name:str) -> List[pd.DataFrame]:
+        print(f'# [Analyzer] requested to make data frames for integration test with {metric_name}')
         # for abreviation
         cdf = self.cdf
         pdf = self.pdf
@@ -537,11 +576,13 @@ class TestAnalyzer(ABC):
         
         # Langguage Dataframe for Integration
         # - fill random values into the data frame
+        print('- language data frame is creatd')
         ldf = random_dataframe(fcol_name='lang', fcol_values = codes, 
                                columns=[f'{i_metric_name}_c', f'{i_metric_name}_p'], 
                                make_last=True, type_last='diff')
 
         # update with real test result only for KR
+        print(f'- language dataframe is updated with real test result for KR')
         ldf.loc[0, [f'{i_metric_name}_c']] = cdf[i_metric_name].mean()
         if pdf is not None:
             ldf.loc[0, [f'{i_metric_name}_p']] = pdf[i_metric_name].mean()
@@ -557,6 +598,7 @@ class TestAnalyzer(ABC):
         # - after dropping missing value
         # - fill random values into the data frame
         # define frame scheme
+        print(f'- utterance length dataframe is created')
         columns = cdf['sentence_len_type'].dropna().unique().tolist()
         # This MUST BE located at random_dataframe, but... not enough time
         ext_cols = list(columns)
@@ -577,6 +619,7 @@ class TestAnalyzer(ABC):
         # Style Dataframe for Integration
         # - after dropping missing value
         # - fill random values into the data frame
+        print(f'- style dataframe is created')
         columns = cdf['style'].dropna().unique().tolist()
         ext_cols = list(columns)
         for i in range(len(columns)):
@@ -591,8 +634,6 @@ class TestAnalyzer(ABC):
             sdf.loc[0, [f'diff_{i}']] = i_result - u_result
         frames.append(sdf)
         
-        print(sdf.head(2))
-        
         return frames     
     
     def get_analysis_result_ut(self, language:str, metric_name:str, aspect_name:str) -> Tuple[Any, List[str] , Optional[pd.DataFrame]]:
@@ -605,6 +646,7 @@ class TestAnalyzer(ABC):
         aspect_index = self.aspects_names_dict[aspect_name] 
         if aspect_index == 0:
             x_var = 'sentence_len'
+            print(f'# [Analyzer] numeric variable anlysis for ut is requested : {x_var},{y_var}')
             return v_analyze_numerics(cdf, x_var, y_var)
         elif aspect_index == 1:
             x_var = 'style'
@@ -612,6 +654,7 @@ class TestAnalyzer(ABC):
             x_var = 'age'
         elif aspect_index == 3:    
             x_var = 'gender'
+            print(f'# [Analyzer] norminal variable anlysis for ut is requested : {x_var},{y_var}')
         return v_analyze_categorics(cdf, x_var, y_var)
 
 
@@ -627,6 +670,7 @@ class TestAnalyzer(ABC):
         aspect_index = self.aspects_names_dict[aspect_name] 
         if aspect_index == 0:
             x_var = 'sentence_len'
+            print(f'# [Analyzer] numeric variable anlysis for it is requested : {x_var},{y_var}')
             return v_analyze_numerics(cdf, x_var, y_var)  
         elif aspect_index == 1:
             x_var = 'style'
@@ -634,6 +678,8 @@ class TestAnalyzer(ABC):
             x_var = 'age'
         elif aspect_index == 3:    
             x_var = 'gender'
+        
+        print(f'# [Analyzer] norminal variable anlysis for it is requested : {x_var},{y_var}')
         return v_analyze_categorics(cdf, x_var, y_var)
 
     
@@ -645,6 +691,7 @@ class TestAnalyzer(ABC):
                                    ret_columns:List[str]) -> List[List[str]]:
         # abbrivation
         cdf = self.cdf
+        print('# [Analyzer] asr test result (numeric) query is requested')
         
         # conditional slicing for each given column in the ret_columns
         ret = []
@@ -658,6 +705,9 @@ class TestAnalyzer(ABC):
         if len(ret) != len(ret_columns):
             ret = [[],[],[],[]]
         
+        for i, ret_col in enumerate(ret_columns):
+            print(f'- {ret_col}, {len(ret[i])}')
+        
         return ret
 
     def get_testresults_by_categoric_asr(self,  aspect_name:str, aspect_val:str, 
@@ -665,7 +715,8 @@ class TestAnalyzer(ABC):
                                      ret_columns:List[str]) -> List[List[str]]:
         # abbrivation
         cdf = self.cdf
-        
+        print('# [Analyzer] asr test result(norminal) query is requested')
+
         # conditional slicing for each given column in the ret_columns
         ret = []
         condition1 = (cdf[aspect_name] == aspect_val)
@@ -678,12 +729,16 @@ class TestAnalyzer(ABC):
         if len(ret) != len(ret_columns):
             ret = [[],[],[],[]]
 
+        for i, ret_col in enumerate(ret_columns):
+            print(f'- {ret_col}, {len(ret[i])}')
+
         return ret
     
     def get_testresults_by_numeric_mt(self,  aspect_name:str, aspect_max:float, aspect_min:float, 
                                       metric_name:str, metric_max:float, metric_min:float) -> Tuple[List[str], Dict[str, List[str]], Dict[str, List[str]]]:
         # abbrivation
         cdf = self.cdf.copy()
+        print(f'# [Analyzer] mt test result (numeric) query is requested with {metric_min} ~ {metric_max} for {aspect_max} ~ {aspect_min}')
         
         # conditional slicing for each given column in the ret_columns
         condition1 = (cdf[aspect_name] >= aspect_min) & (cdf[aspect_name] <= aspect_max)
@@ -691,14 +746,16 @@ class TestAnalyzer(ABC):
         cdf = cdf[condition1 & condition2]
         
         sentences = ('[' + cdf['bleu'].round(2).astype(str) + '] ' + cdf['sentence']).to_list()
-        transcript_dict = cdf[['sentence','transcript']].set_index('sentence')['transcript'].to_dict()
+        transcript_dict = cdf[['sentence','transcript']].set_index('sentence')['transcript'].to_dict()  # TODO CHECK transcript is correct ?
         
+        print(f'- setences : {len(sentences)} , transcript : {len(transcript_dict)}, ground : {len(self.cgdict)}')
         return sentences, transcript_dict, self.cgdict
     
     def get_testresults_by_categoric_mt(self,  aspect_name:str, aspect_val:str, 
                                      metric_name:str, metric_max:float, metric_min:float)-> Tuple[List[str], Dict[str, List[str]], Dict[str, List[str]]]:
         # abbrivation
         cdf = self.cdf.copy()
+        print(f'# [Analyzer] mt test result (numeric) query is requested with {metric_min} ~ {metric_max} for {aspect_val}')
         
         # conditional slicing for each given column in the ret_columns
         condition1 = (cdf[aspect_name] == aspect_val)
@@ -708,4 +765,5 @@ class TestAnalyzer(ABC):
         sentences = ('[' + cdf['bleu'].round(2).astype(str) + '] ' + cdf['sentence']).to_list()
         transcript_dict = cdf[['sentence','transcript']].set_index('sentence')['transcript'].to_dict()
 
+        print(f'- setences : {len(sentences)} , transcript : {len(transcript_dict)}, ground : {len(self.cgdict)}')
         return sentences, transcript_dict, self.cgdict

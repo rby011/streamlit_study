@@ -7,11 +7,10 @@ from typing import List, Tuple, Any, Optional
 from abc import ABC
 
 def show_page(analyzer:TestAnalyzer) -> None:
-    print('tab_asr_root')
     # result summary as data table
     with st.container():
 
-        print('tab_mt_root - result summary')
+        print('# [UI][MT]tab_mt_root - result summary')
 
         st.write('#### Result Summary')
         st.write('''This provides a test result table with which you can which types of utterances have
@@ -108,10 +107,11 @@ def show_page(analyzer:TestAnalyzer) -> None:
                 column_order=['lang', 'spoken', 'written'],
                 hide_index=True,
             )
+        print('# [UI][MT] dataframe is displayed')
 
     # statistical analysis title & list boxes
     with st.container(): 
-        print('[MT] tab_mt_root - detail analysis')
+        print('# [UI][MT] tab_mt_root - detail analysis')
 
         st.write('#### Detail Analysis')
         left_sa, right_sa = st.columns([0.4, 0.6])
@@ -126,17 +126,17 @@ def show_page(analyzer:TestAnalyzer) -> None:
             # aspect value selection
             with right_lt:
                 mt_selected_aspect_name = st.selectbox('choose an aspect : ', analyzer.aspects_names_dict.keys(), key='mt-sel-aspect')
-                if mt_selected_aspect_name == analyzer.aspects_names_list[0]:
+                if mt_selected_aspect_name == analyzer.aspects_names_list[0]:  # TODO CHECK this is required?
                     mt_query_numeric_requested = True
                 else:
                     mt_query_others_requested = True
+        print('# [UI][MT] Query condition component are displayed')
 
     st.write(' ')
 
     # detail analysis body
     with st.container():
-        print('[MT] tab_mt_root - detail analysis body')
-        
+        print('# [UI][MT] tab_mt_root - detail analysis body')
         left_sab, right_sab = st.columns([0.3, 0.7])
         # chart and statistical analysis
         with left_sab:
@@ -149,6 +149,7 @@ def show_page(analyzer:TestAnalyzer) -> None:
                 st.dataframe(frame)
                 st.write(f'<b> Statistic anlaysis for the difference of average-scrore by groups</b>', unsafe_allow_html=True)
                 st.write('\n'.join(info))
+        print('# [UI][MT] data distribution and analysis expander is dispalyed')
                                 
         # test-result query and display the query result
         with right_sab:
@@ -163,22 +164,18 @@ def show_page(analyzer:TestAnalyzer) -> None:
                     right_sab_col1, right_sab_col2, right_sab_col3, right_sab_col4 = st.columns([1,1,1,1])
                     with right_sab_col1:
                         mt_metric_min_query = st.slider('BLEU Min', min_value=0.0, max_value=1.0, step=0.1, value=0.5, key='mt-metric-min-numeric')
-                        print(mt_metric_min_query)
                     with right_sab_col2:
                         mt_metric_max_query = st.slider('BLEU Max', min_value=0.0, max_value=1.0, step=0.1, value=1.0, key='mt-metric-max-numeric')
-                        print(mt_metric_max_query)
                     with right_sab_col3:
                         mt_aspect_min_query = st.slider('Sentence Length Min', 
                                                min_value=analyzer.aspects_min_values_dict[mt_selected_aspect_name], 
                                                max_value=analyzer.aspects_max_values_dict[mt_selected_aspect_name], 
                                                value=analyzer.aspects_max_values_dict[mt_selected_aspect_name]/2, key = 'mt-min-aspect-numeric')
-                        print(mt_aspect_min_query)
                     with right_sab_col4:
                         mt_aspect_max_query = st.slider('Sentence Length Max ', 
                                                min_value=analyzer.aspects_min_values_dict[mt_selected_aspect_name], 
                                                max_value=analyzer.aspects_max_values_dict[mt_selected_aspect_name], 
                                                value=analyzer.aspects_max_values_dict[mt_selected_aspect_name], key ='mt-max-aspect-numeric')
-                        print(mt_aspect_max_query)
                         
                     mt_aspect_name = analyzer.aspects_columns_dict[mt_selected_aspect_name]
                     # set user query condition and query with the condition
@@ -187,27 +184,24 @@ def show_page(analyzer:TestAnalyzer) -> None:
                                                                     mt_aspect_max_query, mt_aspect_min_query, 
                                                                     'bleu', mt_metric_max_query, mt_metric_min_query)
                     
-                    print('[MT] Retrieval after query :', len(mt_sel_item_list[0]) if (mt_sel_item_list is not None and len(mt_sel_item_list) > 0) else None)
+                    print('# [UI][MT] Retrieval after query :', len(mt_sel_item_list[0]) if (mt_sel_item_list is not None and len(mt_sel_item_list) > 0) else None)
                 else:
                     # slider bars for result query
                     right_sab_col6, right_sab_col7, right_sab_col8 = st.columns([1,1,1])
                     with right_sab_col6:
                         mt_metric_min_query = st.slider('BLEU Min', min_value=0.0, max_value=1.0, step=0.1, value=0.5, key='mt-metric-min-others')
-                        print(mt_metric_min_query)
                     with right_sab_col7:
                         mt_metric_max_query = st.slider('BLEU Max', min_value=0.0, max_value=1.0, step=0.1, value=1.0, key='mt-metric-max-others')
-                        print(mt_metric_max_query)
                     with right_sab_col8:
                         mt_aspect_val_query = st.selectbox(f'Choose {mt_selected_aspect_name}',analyzer.aspects_values_dict[mt_selected_aspect_name], key='mt-aspect-others')
                         mt_query_others_requested = True
-                        print(mt_aspect_val_query)
 
                     mt_sel_item_list, mt_trans_dict, mt_grnd_dict = analyzer.get_testresults_by_categoric_mt(
                                                                             analyzer.aspects_columns_dict[mt_selected_aspect_name], 
                                                                             mt_aspect_val_query, 'bleu', 
                                                                             mt_metric_max_query, mt_metric_min_query)
                     
-                    print('[MT] Retrieval after query :', len(mt_sel_item_list[0]) if (mt_sel_item_list is not None and len(mt_sel_item_list) > 0) else None)
+                    print('# [UI][MT] Retrieval after query :', len(mt_sel_item_list[0]) if (mt_sel_item_list is not None and len(mt_sel_item_list) > 0) else None)
 
                 if((mt_sel_item_list is not None) and (len(mt_sel_item_list) > 0)):
                     # audio file list with addition info
@@ -226,13 +220,16 @@ def show_page(analyzer:TestAnalyzer) -> None:
                     with right_sab_col9:
                         for line in mt_grnd_dict[mt_sentence_info[mt_key_idx:].strip()]:
                             st.write(line)
+                    print('# [UI][MT] Retrieval result is displayed')
                 else: # if there is no result
                     for _ in range(6):
                         st.write(' ')
                     st.write("Nothing 💨 💨 💨")
                     for _ in range(6):
                         st.write(' ')
-               
+                    print('# [UI][MT] Not retrieval result to display')
+
                 st.write(' ')
-                print('[MT] mt page finished')
+                
+                print('# [UI][MT] mt page finished')
                 print()
